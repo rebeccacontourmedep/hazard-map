@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -484,7 +485,16 @@ let nextId=1,lastMouse={x:0,y:0};
 let highlightIds=new Set();
 let activeTab='nodes';
 let searchQuery='';
+
 let gapFilter='all';
+
+// ── Swimlane + focus layout state (declared early to avoid TDZ errors) ──
+let swimlaneMode = false;
+let _swimSavedPositions = null;
+let _savedPositions = null;
+let _focusLayoutActive = false;
+
+// ── Swimlane state ─────────────────────────────────────────────────
 
 // Filters: which types/zones are VISIBLE
 // noctrl: when false (active), hide situations/harms that DO have controls — showing only unprotected pairs
@@ -667,8 +677,6 @@ function activateNoCtrlFilter(){
 
 // ── Focus mode ─────────────────────────────────────────────────────
 // ── Saved positions for focus/unfocus restore ──────────────────
-let _savedPositions = null; // {id: {x,y}} snapshot before focus layout
-let _focusLayoutActive = false;
 
 function focusSelected(){
   if(!selected){toast('Select a node first');return;}
@@ -2627,7 +2635,6 @@ Only include the fields relevant to each action. For add_node, x and y are optio
 
 
 // ── Swimlane view ───────────────────────────────────────────────
-let swimlaneMode = false;
 const LANE_TYPES = ['hazard','situation','harm','control'];
 const LANE_COLORS = {
   hazard:    'rgba(192,57,43,.06)',
@@ -2650,7 +2657,6 @@ const LANE_LABEL_COLOR = {
 };
 
 // Store pre-swimlane positions so we can restore on toggle-off
-let _swimSavedPositions = null;
 
 function toggleSwimlane(){
   swimlaneMode = !swimlaneMode;
@@ -2734,3 +2740,4 @@ function drawSwimlaneBands(){
 </script>
 </body>
 </html>
+
