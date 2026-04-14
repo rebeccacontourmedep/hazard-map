@@ -2107,64 +2107,75 @@ function loadSample(){
     [16, 25, 2],
   ].forEach(([f,t,o])=>edges.push({from:f,to:t,occurrence:o}));
 
-  // ── Situation → Risk Control ──────────────────────────────────
+  // ── Harm → Risk Control ────────────────────────────────────
   [
-    // Electric shock → double insulation + IP54 + IFU cleaning
-    [6, 122], [6, 123], [6, 101],
-    // Leakage current → current limit + EMC shielding
-    [7, 102], [7, 103],
-    // Arrhythmia induction → electrical isolation (unchanged)
-    [8, 29],
-    // Spline fracture → deployment stop + fatigue test
-    [9, 104], [9, 105],
-    // Tissue denudation → compliant material + edge/protrusion spec
-    [10, 118], [10, 119],
-    // Failed retraction → retractability cycling + recapture time + IFU instruction
-    [11, 106], [11, 124], [11, 125],
-    // Air embolism → saline priming + sealed lumen
-    [12, 108], [12, 109],
-    // Lumen rupture → fixed-volume syringe + 14PSI withstand test
-    [13, 120], [13, 121],
-    // Hemodynamic → open lattice + IFU contraindication
-    [14, 110], [14, 111],
-    // Thrombus → smooth surface + non-thrombogenic materials + ISO 10993-4 + sheath irrigation
-    [15, 112], [15, 126], [15, 127], [15, 114],
-    // Diagnostic error → impedance spec + Pin-Board qual + EnSite compat
-    [16, 115], [16, 116], [16, 117],
-  ].forEach(([f,t])=>edges.push({from:f,to:t,occurrence:null}));
-
-  // New edges
-  [
-    [2,55,null],[2,56,null],[2,57,null],[2,58,null],[2,59,null],[2,60,null],[2,61,null],[2,62,null],[2,63,null],[2,64,null],[2,65,null],[2,74,null],
-    [3,66,null],
-    [4,67,null],
-    [5,68,null],[5,69,null],[5,70,null],
-    [2,71,null],[2,72,null],[2,73,null],
-    [55,50,2],[55,26,1],
-    [56,18,2],[56,20,2],
-    [57,22,2],[57,20,2],
-    [58,22,1],[58,20,1],
-    [59,51,2],[59,22,2],
-    [60,25,2],
-    [61,22,2],[61,51,2],
-    [62,20,2],[62,22,2],
-    [63,20,2],[63,51,2],
-    [64,18,2],[64,25,2],
-    [65,20,2],[65,22,2],
-    [66,22,2],[66,20,2],
-    [67,21,1],[67,26,1],
-    [68,25,2],
-    [69,25,2],
-    [70,25,2],
-    [71,20,2],[71,51,2],
-    [72,51,2],
-    [73,52,2],
-    [74,22,2],
-    [4,53,2],[4,54,2]
-  ].forEach(([f,t,o])=>edges.push({from:f,to:t,occurrence:o||null}));
-
-  // Control edges (no occurrence)
-  [[55,75],[71,75],[72,75],[67,76],[73,76],[15,77],[56,78],[57,78],[62,78],[71,78],[10,79],[14,79],[56,79],[15,80],[4,80]
+    [17,79], // Tissue damage — Minor → Spline block force design limit <0.
+    [17,101], // Tissue damage — Minor → IFU cleaning instructions — approve
+    [17,102], // Tissue damage — Minor → Leakage current limit per IEC 60601
+    [17,103], // Tissue damage — Minor → EMC shielding design — electrode ar
+    [17,118], // Tissue damage — Minor → Compliant encapsulating exterior ma
+    [17,119], // Tissue damage — Minor → Edge ≤0.5 mm and protrusion ≤0.5 mm
+    [17,122], // Tissue damage — Minor → IEC 60601-1 double insulation — han
+    [17,123], // Tissue damage — Minor → IP54 housing — splash-proof enclosu
+    [18,78], // Tissue damage — Moderate → Fluoroscopy + TEE/ICE real-time ima
+    [18,79], // Tissue damage — Moderate → Spline block force design limit <0.
+    [18,101], // Tissue damage — Moderate → IFU cleaning instructions — approve
+    [18,104], // Tissue damage — Moderate → Deployment stop at 65 mm maximum ra
+    [18,105], // Tissue damage — Moderate → Spline fatigue test — PCB film cycl
+    [18,118], // Tissue damage — Moderate → Compliant encapsulating exterior ma
+    [18,119], // Tissue damage — Moderate → Edge ≤0.5 mm and protrusion ≤0.5 mm
+    [18,122], // Tissue damage — Moderate → IEC 60601-1 double insulation — han
+    [18,123], // Tissue damage — Moderate → IP54 housing — splash-proof enclosu
+    [19,29], // Cardiac arrhythmia → Electrical isolation design; no sti
+    [19,102], // Cardiac arrhythmia → Leakage current limit per IEC 60601
+    [19,103], // Cardiac arrhythmia → EMC shielding design — electrode ar
+    [20,75], // Myocardial perforation / tamponade → IFU contraindications: prosthetic v
+    [20,78], // Myocardial perforation / tamponade → Fluoroscopy + TEE/ICE real-time ima
+    [20,79], // Myocardial perforation / tamponade → Spline block force design limit <0.
+    [20,104], // Myocardial perforation / tamponade → Deployment stop at 65 mm maximum ra
+    [20,105], // Myocardial perforation / tamponade → Spline fatigue test — PCB film cycl
+    [20,106], // Myocardial perforation / tamponade → Retractability cycling ≥100 cycles 
+    [20,120], // Myocardial perforation / tamponade → Fixed-volume syringe with mechanica
+    [20,121], // Myocardial perforation / tamponade → Inflation lumen 14 PSI withstand te
+    [20,124], // Myocardial perforation / tamponade → Emergency recapture time requiremen
+    [20,125], // Myocardial perforation / tamponade → IFU retraction technique instructio
+    [21,76], // Embolic stroke / coronary air embol → IFU contraindication: patients with
+    [21,80], // Embolic stroke / coronary air embol → Full ISO 10993 biocompatibility tes
+    [21,108], // Embolic stroke / coronary air embol → Mandatory saline priming in IFU; bu
+    [21,109], // Embolic stroke / coronary air embol → Sealed air-tight inflation lumen — 
+    [21,120], // Embolic stroke / coronary air embol → Fixed-volume syringe with mechanica
+    [21,121], // Embolic stroke / coronary air embol → Inflation lumen 14 PSI withstand te
+    [22,78], // Intracardiac foreign body retention → Fluoroscopy + TEE/ICE real-time ima
+    [22,104], // Intracardiac foreign body retention → Deployment stop at 65 mm maximum ra
+    [22,105], // Intracardiac foreign body retention → Spline fatigue test — PCB film cycl
+    [22,106], // Intracardiac foreign body retention → Retractability cycling ≥100 cycles 
+    [22,124], // Intracardiac foreign body retention → Emergency recapture time requiremen
+    [22,125], // Intracardiac foreign body retention → IFU retraction technique instructio
+    [23,79], // Hemodynamic instability requiring i → Spline block force design limit <0.
+    [23,110], // Hemodynamic instability requiring i → Open lattice basket design — no mem
+    [23,111], // Hemodynamic instability requiring i → IFU contraindication for undersized
+    [24,77], // Systemic thromboembolism → Heparin / systemic anticoagulation 
+    [24,80], // Systemic thromboembolism → Full ISO 10993 biocompatibility tes
+    [24,112], // Systemic thromboembolism → Smooth exterior surface design — no
+    [24,114], // Systemic thromboembolism → Sheath irrigation protocol during F
+    [24,126], // Systemic thromboembolism → Non-thrombogenic material selection
+    [24,127], // Systemic thromboembolism → ISO 10993-4 haemocompatibility test
+    [25,115], // Misdiagnosis — incorrect ablation t → ≤25 ohm channel impedance; ≤5 ohm c
+    [25,116], // Misdiagnosis — incorrect ablation t → Pin-Board OTS qualification — 32-pi
+    [25,117], // Misdiagnosis — incorrect ablation t → EnSite mapping system compatibility
+    [26,29], // Patient fatality → Electrical isolation design; no sti
+    [26,75], // Patient fatality → IFU contraindications: prosthetic v
+    [26,76], // Patient fatality → IFU contraindication: patients with
+    [26,77], // Patient fatality → Heparin / systemic anticoagulation 
+    [26,80], // Patient fatality → Full ISO 10993 biocompatibility tes
+    [26,112], // Patient fatality → Smooth exterior surface design — no
+    [26,114], // Patient fatality → Sheath irrigation protocol during F
+    [26,126], // Patient fatality → Non-thrombogenic material selection
+    [26,127], // Patient fatality → ISO 10993-4 haemocompatibility test
+    [50,75], // Prosthetic valve damage / regurgita → IFU contraindications: prosthetic v
+    [51,75], // Vascular damage — access site or in → IFU contraindications: prosthetic v
+    [51,78], // Vascular damage — access site or in → Fluoroscopy + TEE/ICE real-time ima
+    [52,76], // Iatrogenic atrial septal defect / s → IFU contraindication: patients with
   ].forEach(([f,t])=>edges.push({from:f,to:t,occurrence:null}));
 
   nextId=118;
@@ -2177,8 +2188,8 @@ function loadSample(){
 // Keys are source node type; values are the ONLY allowed target types.
 const ALLOWED_TARGETS = {
   hazard:    ['situation'],
-  situation: ['harm', 'control'],
-  harm:      [],      // terminal — no outgoing connections
+  situation: ['harm'],
+  harm:      ['control'],
   control:   [],      // terminal — no outgoing connections
 };
 const CONNECTION_RULE_MSG = {
@@ -2190,7 +2201,7 @@ const CONNECTION_RULE_MSG = {
   'harm→hazard':      'Harms are terminal — they have no outgoing connections.',
   'harm→situation':   'Harms are terminal — they have no outgoing connections.',
   'harm→harm':        'Harms are terminal — they have no outgoing connections.',
-  'harm→control':     'Risk Controls connect from a Hazardous Situation, not from a Harm.',
+  'harm→control':     'Already connected, or use the connect tool to link this Harm to a Risk Control.',
   'control→hazard':   'Risk Controls are terminal — they have no outgoing connections.',
   'control→situation':'Risk Controls are terminal — they have no outgoing connections.',
   'control→harm':     'Risk Controls are terminal — they have no outgoing connections.',
@@ -2362,7 +2373,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     addMode=null;connectMode=false;connectSrc=null;connectDrag=null;dragCandidate=null;
     document.getElementById('connect-btn').classList.remove('active');
-    setSt('select','');canvas.style.cursor='default';closeEdgePopup();clearFocus();draw();
+    setSt('select','');canvas.style.cursor='default';closeEdgePopup();draw();
   }
   if(!inInput){
     if(e.key==='Delete'||e.key==='Backspace')deleteSelected();
