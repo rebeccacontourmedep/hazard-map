@@ -545,9 +545,22 @@ setTimeout(resize,60);
 const w2s=(x,y)=>({x:x*zoom+pan.x,y:y*zoom+pan.y});
 const s2w=(x,y)=>({x:(x-pan.x)/zoom,y:(y-pan.y)/zoom});
 
-// Returns true if this situation has at least one outgoing edge to a control node
+// Returns true if this situation has at least one downstream harm with a control connected
+// (ISO 14971: controls now connect Harm→Control, not Situation→Control)
 function sitHasControl(sitNode){
-  return edges.some(e=>e.from===sitNode.id&&nodes.find(n=>n.id===e.to)?.type==='control');
+  const downstreamHarms=edges
+    .filter(e=>e.from===sitNode.id)
+    .map(e=>nodes.find(n=>n.id===e.to))
+    .filter(n=>n&&n.type==='harm');
+  if(!downstreamHarms.length) return false;
+  return downstreamHarms.some(h=>
+    edges.some(e=>e.from===h.id&&nodes.find(n=>n.id===e.to)?.type==='control')
+  );
+}
+
+// Returns true if this harm has at least one control connected
+function harmHasControl(harmNode){
+  return edges.some(e=>e.from===harmNode.id&&nodes.find(n=>n.id===e.to)?.type==='control');
 }
 
 // ── Visibility ─────────────────────────────────────────────────────
@@ -1220,7 +1233,12 @@ function getGaps(){
   harms.forEach(h=>{const iz=zone(h.severity,harmWorstOcc(h));if(iz===2&&(!h.postSeverity||!h.postOccurrence))gaps.push({type:'z2-no-post',label:h.label,id:h.id,sev:'amber',sortKey:2,zone:2});});
   edges.forEach(e=>{const s=nodes.find(n=>n.id===e.from),d=nodes.find(n=>n.id===e.to);if(s&&d&&s.type==='situation'&&d.type==='harm'&&!e.occurrence)gaps.push({type:'no-occ',label:d.label+' ← '+s.label,id:d.id,sev:'amber',sortKey:1});});
   nodes.filter(n=>n.type==='situation').forEach(sit=>{if(!edges.some(e=>e.from===sit.id&&nodes.find(n=>n.id===e.to)?.type==='harm'))gaps.push({type:'no-harm',label:sit.label,id:sit.id,sev:'amber',sortKey:1});});
-  nodes.filter(n=>n.type==='situation').forEach(sit=>{if(!edges.some(e=>e.from===sit.id&&nodes.find(n=>n.id===e.to)?.type==='control'))gaps.push({type:'no-ctrl',label:sit.label,id:sit.id,sev:'gray',sortKey:0});});
+  // no-ctrl: situation has at least one harm, but none of those harms have a control
+  nodes.filter(n=>n.type==='situation').forEach(sit=>{
+    const sitHarms=edges.filter(e=>e.from===sit.id).map(e=>nodes.find(n=>n.id===e.to)).filter(n=>n&&n.type==='harm');
+    if(sitHarms.length>0&&!sitHarms.some(h=>harmHasControl(h)))
+      gaps.push({type:'no-ctrl',label:sit.label,id:sit.id,sev:'gray',sortKey:0});
+  });
   return gaps;
 }
 
@@ -1324,9 +1342,9 @@ function updFaultTree(){
           .filter(e2=>e2.to===sit.id)
           .map(e2=>nodes.find(n=>n.id===e2.from))
           .filter(n=>n&&n.type==='hazard');
-        // Risk controls for this situation
+        // Risk controls: connected from the harm node (harm→control)
         const controls=edges
-          .filter(e2=>e2.from===sit.id)
+          .filter(e2=>e2.from===h.id)
           .map(e2=>nodes.find(n=>n.id===e2.to))
           .filter(n=>n&&n.type==='control');
         return{sit,occ:e.occ||e.occurrence,hazards,controls};
@@ -1401,11 +1419,11 @@ function updMatrix(){
   sits.forEach(sit=>{
     const outEdges=edges.filter(e=>e.from===sit.id);
     const harmEdges=outEdges.filter(e=>{const t=nodes.find(n=>n.id===e.to);return t&&t.type==='harm';});
-    const ctrlEdges=outEdges.filter(e=>{const t=nodes.find(n=>n.id===e.to);return t&&t.type==='control';});
     const linkedHarms=harmEdges.map(e=>nodes.find(n=>n.id===e.to)).filter(Boolean);
     const hasHarms=linkedHarms.length>0;
     const occsSet=hasHarms&&harmEdges.every(e=>e.occurrence||e.occ);
-    const hasCtrl=ctrlEdges.length>0;
+    // Control check: any downstream harm has a control connected (harm→control)
+    const hasCtrl=hasHarms&&linkedHarms.some(h=>harmHasControl(h));
     const allPost=hasHarms&&linkedHarms.every(h=>h.postSeverity&&h.postOccurrence);
     const anyMissingPost=hasHarms&&linkedHarms.some(h=>!h.postSeverity||!h.postOccurrence);
     const gaps=[];
@@ -1459,7 +1477,7 @@ function updOpenItems(){
     const linkedHarms=harmEdges.map(e=>nodes.find(n=>n.id===e.to)).filter(Boolean);
     const hasZ3=linkedHarms.some(h=>zone(h.severity,harmEdges.find(e=>e.to===h.id)?.occurrence)===3);
     if(hasZ3&&!sitHasControl(sit)){
-      critical.push({w:'Zone 3 harm path has no risk control connected to this situation',x:sit.label.substring(0,55)});
+      critical.push({w:'Zone 3 harm path has no risk control — add a Risk Control to the linked Harm node',x:sit.label.substring(0,55)});
     }
   });
 
@@ -1583,8 +1601,49 @@ function selectFromList(id){const n=nodes.find(n=>n.id===id);if(n){selectNode(n)
 function autoLayout(){
   const c={hazard:[],situation:[],harm:[],control:[]};
   nodes.forEach(n=>c[n.type]&&c[n.type].push(n));
-  const xp={hazard:-520,situation:-175,harm:170,control:490};
-  Object.entries(c).forEach(([t,ns])=>ns.forEach((n,i)=>{n.x=xp[t];n.y=(i-(ns.length-1)/2)*110;}));
+  const xp={hazard:-560,situation:-200,harm:160,control:490};
+
+  // Sort situations by their parent hazard ID so related nodes cluster together
+  const sitHazard={};
+  edges.forEach(e=>{
+    const f=nodes.find(n=>n.id===e.from),t=nodes.find(n=>n.id===e.to);
+    if(f&&t&&f.type==='hazard'&&t.type==='situation') sitHazard[t.id]=f.id;
+  });
+  c.situation.sort((a,b)=>(sitHazard[a.id]||999)-(sitHazard[b.id]||999)||a.id-b.id);
+
+  // Sort harms by the situation they connect from (via first inbound edge)
+  const harmSit={};
+  edges.forEach(e=>{
+    const f=nodes.find(n=>n.id===e.from),t=nodes.find(n=>n.id===e.to);
+    if(f&&t&&f.type==='situation'&&t.type==='harm'&&!harmSit[t.id]) harmSit[t.id]=c.situation.findIndex(s=>s.id===f.id);
+  });
+  c.harm.sort((a,b)=>(harmSit[a.id]??999)-(harmSit[b.id]??999)||a.id-b.id);
+
+  // Sort controls by the harm they connect from
+  const ctrlHarm={};
+  edges.forEach(e=>{
+    const f=nodes.find(n=>n.id===e.from),t=nodes.find(n=>n.id===e.to);
+    if(f&&t&&f.type==='harm'&&t.type==='control'&&!ctrlHarm[t.id]) ctrlHarm[t.id]=c.harm.findIndex(h=>h.id===f.id);
+  });
+  c.control.sort((a,b)=>(ctrlHarm[a.id]??999)-(ctrlHarm[b.id]??999)||a.id-b.id);
+
+  // Dynamic vertical spacing — tighter for large node counts
+  const maxCount=Math.max(c.situation.length,c.harm.length,c.control.length);
+  const PAD=Math.max(75, Math.min(115, Math.round(4200/Math.max(maxCount,1))));
+
+  Object.entries(c).forEach(([t,ns])=>{
+    ns.forEach((n,i)=>{n.x=xp[t];n.y=(i-(ns.length-1)/2)*PAD;});
+  });
+
+  // Hazards: space evenly across vertical range of their situations
+  c.hazard.forEach(h=>{
+    const mySits=c.situation.filter(s=>sitHazard[s.id]===h.id);
+    if(mySits.length){
+      const ys=mySits.map(s=>s.y);
+      h.y=(Math.min(...ys)+Math.max(...ys))/2;
+    }
+  });
+
   fitScreen();
 }
 
@@ -1592,6 +1651,7 @@ function clearAll(){
   if(!nodes.length||confirm('Clear all nodes and connections?')){
     pushUndo();nodes=[];edges=[];selected=null;selEdge=null;clearFocus();closeEdgePopup();
     document.getElementById('edit-panel').style.display='none';updAll();draw();
+    scheduleSave();
   }
 }
 
@@ -2178,10 +2238,62 @@ function loadSample(){
     [52,76], // Iatrogenic atrial septal defect / s → IFU contraindication: patients with
   ].forEach(([f,t])=>edges.push({from:f,to:t,occurrence:null}));
 
-  nextId=118;
+
+  // ── Gap analysis edges: Hazard → Situation (IDs 55–74) ──────
+  [
+    [2,55,null],[2,56,null],[2,57,null],[2,58,null],[2,59,null],
+    [2,60,null],[2,61,null],[2,62,null],[2,63,null],[2,64,null],
+    [2,65,null],[2,74,null],
+    [3,66,null],
+    [4,67,null],
+    [5,68,null],[5,69,null],[5,70,null],
+    [2,71,null],[2,72,null],[2,73,null],
+  ].forEach(([f,t,o])=>edges.push({from:f,to:t,occurrence:o||null}));
+
+  // ── Gap analysis edges: Situation → Harm (IDs 55–74) ────────
+  [
+    [55,50,2],[55,26,1],
+    [56,18,2],[56,20,2],
+    [57,22,2],[57,20,2],
+    [58,22,1],[58,20,1],
+    [59,51,2],[59,22,2],
+    [60,25,2],
+    [61,22,2],[61,51,2],
+    [62,20,2],[62,22,2],
+    [63,20,2],[63,51,2],
+    [64,18,2],[64,25,2],
+    [65,20,2],[65,22,2],
+    [66,22,2],[66,20,2],
+    [67,21,1],[67,26,1],
+    [68,25,2],
+    [69,25,2],
+    [70,25,2],
+    [71,20,2],[71,51,2],
+    [72,51,2],
+    [73,52,2],
+    [74,22,2],
+  ].forEach(([f,t,o])=>edges.push({from:f,to:t,occurrence:o||null}));
+
+  // Harms 53/54 (inflammation/complement) connect from biological situations
+  [[15,53,2],[15,54,2],[67,53,2],[67,54,2]].forEach(([f,t,o])=>edges.push({from:f,to:t,occurrence:o}));
+
+  // ── Gap analysis harm→ctrl edges (IDs 50–54) ─────────────────
+  // These are covered in the Harm→Risk Control block above for 50,51,52
+  // 53 (myocardial inflammation) and 54 (systemic inflammatory) need ctrl connections
+  [
+    [53,80],[53,126],[53,127],  // inflammation → ISO 10993 controls
+    [54,80],[54,126],[54,127],  // complement activation → ISO 10993 controls
+  ].forEach(([f,t])=>edges.push({from:f,to:t,occurrence:null}));
+
+  nextId=128;
   selected=null;
   document.getElementById('edit-panel').style.display='none';
-  clearFocus();closeEdgePopup();updAll();setTimeout(fitScreen,80);
+  clearFocus();closeEdgePopup();updAll();
+  setTimeout(()=>{
+    autoLayout();
+    // Force save to Supabase so the correct diagram persists on next login
+    if(sb) saveToSupabase('Loaded Example diagram');
+  },80);
 }
 
 // ── Connection rules (per ISO 14971 risk management process) ───────
