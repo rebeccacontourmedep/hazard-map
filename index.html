@@ -1628,7 +1628,7 @@ function toast(msg){const el=document.getElementById('toast');el.textContent=msg
 // Ref: CM-000023-OP Risk Management SOP; CM-000036-FM Hazard Analysis Template
 // Updated from DOC-XXXX Atlas 360 Traceability Matrix (UN-006 through UN-032)
 function loadSample(){
-  nodes=[];edges=[];nextId=1;undoStack=[];
+  nodes=[];edges=[];nextId=128;undoStack=[];
   const ns=[
 
     // ── Hazards ───────────────────────────────────────────────────
@@ -1749,19 +1749,37 @@ function loadSample(){
       notes:'Severity 5 — Catastrophic; from uncontrolled perforation, embolism, or refractory arrhythmia'},
 
     // ── Risk Controls ─────────────────────────────────────────────
-    // RC-1: Electric shock
-    {id:27, type:'control',
-      label:'IEC 60601-1 double insulation; IP54 housing; IFU cleaning instructions (UN-015)',
+    // RC-1a-i: Double insulation
+    {id:122, type:'control',
+      label:'IEC 60601-1 double insulation — handle connector and electrical housing (UN-015)',
+      x:515, y:-650,
+      notes:'UN-015; IEC 60601-1 §8.8; double insulation provides two independent barriers against electrical shock',
+      verification:'Dielectric strength test per IEC 60601-1; production test record'},
+    // RC-1a-ii: IP54 housing
+    {id:123, type:'control',
+      label:'IP54 housing — splash-proof enclosure for handle and electrical components (UN-015)',
       x:515, y:-590,
-      notes:'UN-015; IEC 60601-1 §8.8',
-      verification:'Dielectric strength test; IP54 spray test; production test record'},
+      notes:'UN-015; IP54 rating prevents moisture ingress during cleaning and incidental fluid exposure',
+      verification:'IP54 spray test per IEC 60529; production test record'},
+    // RC-1b: Electric shock — IFU
+    {id:101, type:'control',
+      label:'IFU cleaning instructions — approved cleaning methods only (UN-015)',
+      x:515, y:-555,
+      notes:'UN-015; CM-000023-OP §3.2; prohibits liquid cleaning agents on handle connector',
+      verification:'IFU cleaning section review; usability validation of cleaning procedure'},
 
-    // RC-2: Leakage current / thermal
-    {id:28, type:'control',
-      label:'Leakage current limit per IEC 60601-1-2; EMC shielding design (UN-011)',
-      x:515, y:-440,
-      notes:'UN-011; IEC 60601-1-2 EMC; leakage current ≤X µA per applicable clause',
+    // RC-2a: Leakage current limit
+    {id:102, type:'control',
+      label:'Leakage current limit per IEC 60601-1-2 (UN-011)',
+      x:515, y:-470,
+      notes:'UN-011; IEC 60601-1-2; leakage current ≤X µA per applicable clause',
       verification:'Leakage current measurement; EMC test report VP-EMC-001'},
+    // RC-2b: EMC shielding
+    {id:103, type:'control',
+      label:'EMC shielding design — electrode array and cable assembly (UN-011)',
+      x:515, y:-405,
+      notes:'UN-011; IEC 60601-1-2; shielding prevents induced current from adjacent RF ablation systems',
+      verification:'EMC test report VP-EMC-001; shielded cable qualification'},
 
     // RC-3: Unintended arrhythmia
     {id:29, type:'control',
@@ -1770,61 +1788,133 @@ function loadSample(){
       notes:'UN-011; intentional pacing via EnSite only; no passive electrical energy delivery',
       verification:'Electrical isolation test; functional verification of pacing stimulus pathway'},
 
-    // RC-4: Spline fracture / over-deployment
-    {id:30, type:'control',
-      label:'Deployment stop at 65 mm max diameter; fixed-volume syringe; spline fatigue test (UN-006, UN-032)',
-      x:515, y:-145,
-      notes:'UN-006; UN-032; 14 PSI withstand = 2× safety margin; basket diameter range 6–65 mm',
-      verification:'VP-0014 Spline Fatigue Test; deployment force limit verification; pressure withstand test'},
+    // RC-4a: Deployment stop
+    {id:104, type:'control',
+      label:'Deployment stop at 65 mm maximum rated diameter (UN-006)',
+      x:515, y:-175,
+      notes:'UN-006; UN-026; basket diameter range 6–65 mm; mechanical stop prevents over-deployment beyond rated size',
+      verification:'Deployment force limit verification; dimensional test at max diameter'},
+    // RC-4b: Spline fatigue test
+    {id:105, type:'control',
+      label:'Spline fatigue test — PCB film cyclic stress verification (UN-006, UN-032)',
+      x:515, y:-105,
+      notes:'UN-006; UN-032; fatigue testing validates spline durability under cyclic inflation/deflation loading',
+      verification:'VP-0014 Spline Fatigue Test; pressure withstand test to 14 PSI'},
 
-    // RC-5: Tissue denudation
-    {id:31, type:'control',
-      label:'Compliant encapsulating exterior material; edge ≤0.5 mm and protrusion ≤0.5 mm (UN-008 — criteria under review)',
-      x:515, y:  0,
+    // RC-5a: Compliant encapsulating material
+    {id:118, type:'control',
+      label:'Compliant encapsulating exterior material — polyurethane overmould on PCB splines (UN-008)',
+      x:515, y:-30,
+      notes:'UN-008; compliant material prevents direct PCB contact with tissue; polyurethane encapsulation of flex-PCB',
+      verification:'Material characterisation; durometer/compliance testing; design review confirming full PCB encapsulation'},
+    // RC-5b: Edge and protrusion spec
+    {id:119, type:'control',
+      label:'Edge ≤0.5 mm and protrusion ≤0.5 mm (UN-008 — acceptance criteria under review)',
+      x:515, y: 45,
       notes:'UN-008; exact threshold for edges and protrusions still being vetted — TBD before design freeze; open action: Simon/Bobak/Erik to propose criteria or benchtop test',
       verification:'Dimensional inspection; surface finish characterisation; TBD acceptance criteria pending engineering team input'},
 
-    // RC-6: Failed retraction
-    {id:32, type:'control',
-      label:'Retractability cycling ≥100 cycles; emergency recapture time requirement (UN-014, UN-039)',
-      x:515, y: 145,
-      notes:'UN-014; UN-039 emergency recapture time TBD (Kevin to define); IFU retraction technique instruction',
+    // RC-6a: Retractability cycling
+    {id:106, type:'control',
+      label:'Retractability cycling ≥100 cycles — basket retraction durability (UN-014)',
+      x:515, y: 115,
+      notes:'UN-014; retraction cycling validates mechanical integrity over expected use life',
       verification:'VP-RET-001 retraction cycling test; shaft integrity test ≥100 cycles'},
+    // RC-6b-i: Emergency recapture time requirement
+    {id:124, type:'control',
+      label:'Emergency recapture time requirement — basket recaptured within defined time limit (UN-039)',
+      x:515, y: 175,
+      notes:'UN-039; emergency recapture time TBD (Kevin to define); time limit must be clinically meaningful for emergency scenario',
+      verification:'Emergency recapture time test with representative users; simulated use validation'},
+    // RC-6b-ii: IFU retraction instructions
+    {id:125, type:'control',
+      label:'IFU retraction technique instructions — step-by-step emergency withdrawal procedure (UN-039)',
+      x:515, y: 250,
+      notes:'UN-039; IFU must document emergency retraction steps clearly; instructions reviewed for clarity and completeness',
+      verification:'IFU document review confirming presence and adequacy of retraction instructions; usability review'},
 
-    // RC-7: Air embolism
-    {id:33, type:'control',
-      label:'Mandatory saline priming in IFU; bubble inspection protocol; sealed air-tight inflation lumen (UN-010)',
-      x:515, y: 295,
-      notes:'UN-010; inflation path sealed and air-tight under nominal conditions',
-      verification:'Priming bubble inspection test; inflation path integrity test'},
+    // RC-7a: Saline priming IFU
+    {id:108, type:'control',
+      label:'Mandatory saline priming in IFU; bubble inspection protocol (UN-010)',
+      x:515, y: 265,
+      notes:'UN-010; CM-000023-OP §3.4; IFU specifies mandatory saline purge before insertion',
+      verification:'Priming bubble inspection test; IFU priming procedure usability validation'},
+    // RC-7b: Sealed inflation lumen
+    {id:109, type:'control',
+      label:'Sealed air-tight inflation lumen — design requirement (UN-010)',
+      x:515, y: 340,
+      notes:'UN-010; inflation path sealed and air-tight under nominal conditions; prevents air ingress during use',
+      verification:'Inflation path integrity test; seal leak test at nominal and 2× operating pressure'},
 
-    // RC-8: Lumen rupture
-    {id:34, type:'control',
-      label:'Fixed-volume syringe with mechanical stop; 14 PSI withstand test; 2× safety margin (UN-032)',
-      x:515, y: 445,
-      notes:'UN-032; 14 PSI = 2× nominal operating pressure; fixed-volume syringe limits max pressure deliverable',
-      verification:'Pressure withstand test to 14 PSI; syringe volume stop verification'},
+    // RC-8a: Fixed-volume syringe
+    {id:120, type:'control',
+      label:'Fixed-volume syringe with mechanical stop — limits maximum deliverable pressure (UN-032)',
+      x:515, y: 415,
+      notes:'UN-032; fixed-volume syringe design prevents operator from exceeding safe inflation volume; mechanical stop is primary pressure control',
+      verification:'Syringe volume stop verification; functional test confirming mechanical stop at rated volume'},
+    // RC-8b: 14 PSI withstand test
+    {id:121, type:'control',
+      label:'Inflation lumen 14 PSI withstand test — 2× safety margin (UN-032)',
+      x:515, y: 490,
+      notes:'UN-032; 14 PSI = 2× nominal operating pressure; withstand test verifies lumen and seal integrity under worst-case pressure',
+      verification:'Pressure withstand test to 14 PSI; lumen integrity inspection post-test'},
 
-    // RC-9: Hemodynamic obstruction
-    {id:35, type:'control',
-      label:'Open lattice basket (no membrane); hemodynamic obstruction limit TBD; IFU contraindication for undersized chambers (UN-012)',
-      x:515, y: 590,
-      notes:'UN-012; quantitative obstruction threshold TBD — no bench criteria yet; lattice dimension or % obstruction criteria needed (Kevin/Jan); may require animal study to validate',
-      verification:'Animal study during FIH program; bench flow model (secondary); IFU contraindication for undersized anatomy'},
+    // RC-9a: Open lattice design
+    {id:110, type:'control',
+      label:'Open lattice basket design — no membrane; minimises flow obstruction (UN-012)',
+      x:515, y: 555,
+      notes:'UN-012; lattice geometry allows blood flow through basket during deployment; open lattice is design requirement',
+      verification:'Bench flow model; hemodynamic obstruction threshold TBD (Kevin/Jan to define; may require animal study)'},
+    // RC-9b: IFU contraindication undersized chambers
+    {id:111, type:'control',
+      label:'IFU contraindication for undersized chambers and valvular anatomy (UN-012)',
+      x:515, y: 635,
+      notes:'UN-012; undersized anatomy (e.g. paediatric, small atrium) excluded; quantitative threshold TBD',
+      verification:'IFU contraindication section; pre-procedure anatomy assessment protocol'},
 
-    // RC-10: Thrombus
-    {id:36, type:'control',
-      label:'Smooth surface design; non-thrombogenic materials; ISO 10993 biocompatibility; sheath irrigation during FIH (UN-009)',
-      x:515, y: 740,
-      notes:'UN-009; ISO 10993-4 haemocompatibility; avoid gaps/crevices/stagnation areas; 3/19 meeting: no quantitative surface criteria found in ISO 10993-4 — Erik to check with Polyzen; in vivo thrombogenicity characterization required (Jan to schedule; lead TBD: Simon/Bobak); sheath irrigation during clinical study is a procedural mitigation',
-      verification:'Formal thrombogenicity testing (in vivo); ISO 10993-4 haemocompatibility testing; surface characterisation; sheath irrigation protocol in FIH study protocol'},
+    // RC-10a: Smooth surface design
+    {id:112, type:'control',
+      label:'Smooth exterior surface design — no gaps or crevices on catheter (UN-009)',
+      x:515, y: 700,
+      notes:'UN-009; avoid stagnation areas; smooth outer surface minimises platelet activation; no quantitative surface criteria found in ISO 10993-4 — Erik to check with Polyzen',
+      verification:'Surface finish characterisation; dimensional inspection for gaps and crevices; surface roughness measurement'},
+    // RC-10b-i: Non-thrombogenic materials selection
+    {id:126, type:'control',
+      label:'Non-thrombogenic material selection — polyurethane, Kapton, Pt-Ir electrodes (UN-009)',
+      x:515, y: 760,
+      notes:'UN-009; materials selected for known biocompatibility; Polyzen polyurethane and Pt-Ir are established non-thrombogenic materials in cardiovascular devices',
+      verification:'Material selection rationale document; supplier biocompatibility data; design review sign-off'},
+    // RC-10b-ii: ISO 10993-4 haemocompatibility testing
+    {id:127, type:'control',
+      label:'ISO 10993-4 haemocompatibility testing — thrombogenicity and haemolysis (UN-009)',
+      x:515, y: 835,
+      notes:'UN-009; ISO 10993-4; in vivo thrombogenicity characterisation required (Jan to schedule; lead TBD: Simon/Bobak); haemolysis testing required',
+      verification:'Formal thrombogenicity testing (in vivo); haemolysis test; ISO 10993-4 test report'},
+    // RC-10c: Sheath irrigation
+    {id:114, type:'control',
+      label:'Sheath irrigation protocol during FIH clinical study — procedural mitigation (UN-009)',
+      x:515, y: 855,
+      notes:'UN-009; sheath irrigation reduces blood stasis at catheter shaft; procedural mitigation during FIH study only',
+      verification:'Sheath irrigation protocol in FIH study protocol; clinical data from FIH study'},
 
-    // RC-11: Diagnostic error
-    {id:37, type:'control',
-      label:'≤25 ohm channel impedance; ≤5 ohm channel-to-channel variation; Pin-Board OTS qualification; EnSite compatibility (UN-018, UN-021)',
-      x:515, y: 885,
-      notes:'UN-018; UN-021; UN-023; 25 ohm threshold confirmed (covers Atlas to end of cable into Pin-Board); Pin-Board: 32-pin model, 20 pins per board correlating to 20 electrodes per spline (4 boards total); signal loss indicator in mapping software',
-      verification:'80-channel impedance verification (≤25 ohm each; ≤5 ohm channel-to-channel); EnSite compatibility test; Pin-Board OTS qualification per supplier spec'},
+    // RC-11a: Impedance specification
+    {id:115, type:'control',
+      label:'≤25 ohm channel impedance; ≤5 ohm channel-to-channel variation (UN-018)',
+      x:515, y: 845,
+      notes:'UN-018; UN-021; 25 ohm threshold confirmed (covers Atlas to end of cable into Pin-Board); 80 independent channels',
+      verification:'80-channel impedance verification (≤25 ohm each; ≤5 ohm channel-to-channel)'},
+    // RC-11b: Pin-Board OTS qualification
+    {id:116, type:'control',
+      label:'Pin-Board OTS qualification — 32-pin DAQ accessory (UN-021)',
+      x:515, y: 930,
+      notes:'UN-021; Pin-Board: 32-pin model, 20 pins per board, 4 boards total for 80 channels; OTS qualification required',
+      verification:'Pin-Board OTS qualification per supplier spec; incoming inspection procedure'},
+    // RC-11c: EnSite compatibility
+    {id:117, type:'control',
+      label:'EnSite mapping system compatibility verification (UN-023)',
+      x:515, y: 1010,
+      notes:'UN-023; voltage map generated via EnSite; signal loss indicator in mapping software',
+      verification:'EnSite compatibility test; voltage map accuracy verification'},
 
     // ── NEW NODES FROM PRE-SUB GAP ANALYSIS ──────────────────────
 
@@ -2019,17 +2109,28 @@ function loadSample(){
 
   // ── Situation → Risk Control ──────────────────────────────────
   [
-    [6, 27],   // electric shock → IEC 60601-1 / IP54
-    [7, 28],   // leakage current → leakage current limit / EMC
-    [8, 29],   // arrhythmia induction → electrical isolation
-    [9, 30],   // spline fracture → deployment stop / fatigue test
-    [10, 31],  // tissue denudation → compliant material / edge spec
-    [11, 32],  // failed retraction → retractability cycling
-    [12, 33],  // air embolism → priming protocol
-    [13, 34],  // lumen rupture → fixed-volume syringe / pressure test
-    [14, 35],  // hemodynamic → open lattice / threshold TBD
-    [15, 36],  // thrombus → smooth surface / ISO 10993
-    [16, 37],  // diagnostic error → impedance spec / Pin-Board qual
+    // Electric shock → double insulation + IP54 + IFU cleaning
+    [6, 122], [6, 123], [6, 101],
+    // Leakage current → current limit + EMC shielding
+    [7, 102], [7, 103],
+    // Arrhythmia induction → electrical isolation (unchanged)
+    [8, 29],
+    // Spline fracture → deployment stop + fatigue test
+    [9, 104], [9, 105],
+    // Tissue denudation → compliant material + edge/protrusion spec
+    [10, 118], [10, 119],
+    // Failed retraction → retractability cycling + recapture time + IFU instruction
+    [11, 106], [11, 124], [11, 125],
+    // Air embolism → saline priming + sealed lumen
+    [12, 108], [12, 109],
+    // Lumen rupture → fixed-volume syringe + 14PSI withstand test
+    [13, 120], [13, 121],
+    // Hemodynamic → open lattice + IFU contraindication
+    [14, 110], [14, 111],
+    // Thrombus → smooth surface + non-thrombogenic materials + ISO 10993-4 + sheath irrigation
+    [15, 112], [15, 126], [15, 127], [15, 114],
+    // Diagnostic error → impedance spec + Pin-Board qual + EnSite compat
+    [16, 115], [16, 116], [16, 117],
   ].forEach(([f,t])=>edges.push({from:f,to:t,occurrence:null}));
 
   // New edges
@@ -2066,7 +2167,7 @@ function loadSample(){
   [[55,75],[71,75],[72,75],[67,76],[73,76],[15,77],[56,78],[57,78],[62,78],[71,78],[10,79],[14,79],[56,79],[15,80],[4,80]
   ].forEach(([f,t])=>edges.push({from:f,to:t,occurrence:null}));
 
-  nextId=81;
+  nextId=118;
   selected=null;
   document.getElementById('edit-panel').style.display='none';
   clearFocus();closeEdgePopup();updAll();setTimeout(fitScreen,80);
@@ -2740,4 +2841,3 @@ function drawSwimlaneBands(){
 </script>
 </body>
 </html>
-
