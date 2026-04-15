@@ -227,10 +227,53 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 .al-what{color:var(--text2);margin-top:2px;line-height:1.4;}
 .al-empty{font-size:12px;color:var(--text3);padding:16px 8px;text-align:center;}
 
-/* ── Swimlane mode ── */
-.btn-swimlane{border-color:rgba(99,60,180,.5);color:#6330b4;}
-.btn-swimlane:hover{background:#f5f0ff;}
-.btn-swimlane.active{background:#6330b4;border-color:#6330b4;color:#fff;}
+/* ── Predicate evidence filter ── */
+.fbtn.fpred{border-color:rgba(245,158,11,.5);color:#b45309;}
+.fbtn.fpred.on{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.8);color:#b45309;font-weight:700;}
+.fbtn.fpred.off{opacity:.5;}
+
+/* ── Evidence section in edit panel ── */
+.ev-section{margin-top:8px;border-top:1px solid var(--border);padding-top:8px;}
+.ev-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.ev-section-title{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text3);font-family:'IBM Plex Mono',monospace;}
+.ev-add-btn{font-size:11px;padding:2px 8px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:3px;color:var(--accent);cursor:pointer;font-family:'IBM Plex Mono',monospace;}
+.ev-add-btn:hover{background:var(--surface);border-color:var(--accent);}
+.ev-item{background:var(--surface2);border-radius:4px;border:1px solid var(--border);
+  padding:6px 8px;margin-bottom:5px;position:relative;}
+.ev-item[data-evtype="predicate"]{border-left:3px solid #f59e0b;}
+.ev-item[data-evtype="internal"]{border-left:3px solid var(--accent);}
+.ev-badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;padding:1px 5px;border-radius:2px;margin-bottom:3px;
+  font-family:'IBM Plex Mono',monospace;}
+.ev-badge-pred{background:rgba(245,158,11,.15);color:#b45309;border:1px solid rgba(245,158,11,.4);}
+.ev-badge-int{background:rgba(37,99,235,.1);color:#2563eb;border:1px solid rgba(37,99,235,.3);}
+.ev-product{font-size:12px;font-weight:600;color:var(--text);font-family:'IBM Plex Mono',monospace;}
+.ev-src{font-size:10px;color:var(--text3);margin-top:1px;font-family:'IBM Plex Mono',monospace;}
+.ev-detail{font-size:11px;color:var(--text2);margin-top:5px;border-top:1px solid var(--border);
+  padding-top:5px;line-height:1.5;white-space:pre-wrap;font-family:'IBM Plex Sans',sans-serif;}
+.ev-del-btn{position:absolute;top:4px;right:6px;background:none;border:none;
+  color:var(--text3);cursor:pointer;font-size:13px;line-height:1;padding:2px 4px;}
+.ev-del-btn:hover{color:#dc2626;}
+.ev-form{background:var(--surface2);border:1px solid var(--border);border-radius:4px;
+  padding:8px;margin-bottom:6px;}
+.ev-form-row{margin-bottom:6px;}
+.ev-form label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text3);font-family:'IBM Plex Mono',monospace;display:block;margin-bottom:3px;}
+.ev-form input,.ev-form select,.ev-form textarea{
+  width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);
+  padding:4px 7px;border-radius:3px;font-size:12px;font-family:'IBM Plex Mono',monospace;resize:vertical;}
+.ev-form input:focus,.ev-form select:focus,.ev-form textarea:focus{outline:none;border-color:var(--accent);}
+.ev-form-btns{display:flex;gap:6px;margin-top:6px;}
+.ev-form-btns button{flex:1;padding:4px;font-size:11px;border-radius:3px;cursor:pointer;
+  font-family:'IBM Plex Mono',monospace;border:1px solid var(--border);}
+.ev-save-btn{background:var(--accent);color:#fff;border-color:var(--accent)!important;}
+.ev-save-btn:hover{background:#1d4ed8;}
+.ev-cancel-btn{background:var(--surface);color:var(--text2);}
+.ev-cancel-btn:hover{background:var(--border);}
+.ev-empty{font-size:11px;color:var(--text3);font-style:italic;padding:4px 0;}
+
 
 </style>
 </head>
@@ -293,6 +336,7 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
   <button class="fbtn fz3 on" id="f-z3" onclick="toggleFilter('z3')">Z3</button>
   <button class="fbtn on"     id="f-zu" onclick="toggleFilter('zu')">Unassessed</button>
   <button class="fbtn on" id="f-noctrl" onclick="toggleFilter('noctrl')" title="Show only Situation→Harm pairs with no Risk Control connected" style="border-color:rgba(139,92,246,.4);color:#7c3aed;">No Control</button>
+  <button class="fbtn fpred off" id="f-pred" onclick="togglePredicateFilter()" title="Highlight nodes with predicate product evidence attached">⬡ Predicate Evidence</button>
   <div class="sep"></div>
   <div class="focus-banner" id="focus-banner">
     <span id="focus-label">Focused on: —</span>
@@ -432,6 +476,42 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         </div>
 
         <div id="ep-connections" class="ep-connections" style="display:none"></div>
+
+        <!-- Evidence section -->
+        <div class="ev-section" id="ev-section">
+          <div class="ev-section-hdr">
+            <span class="ev-section-title">Evidence Sources</span>
+            <button class="ev-add-btn" onclick="showEvForm()">+ Add</button>
+          </div>
+          <div id="ev-list"></div>
+          <div id="ev-form" style="display:none">
+            <div class="ev-form">
+              <div class="ev-form-row">
+                <label>Source type</label>
+                <select id="evf-type">
+                  <option value="predicate">Predicate product (market comparison)</option>
+                  <option value="internal">Internal (design review, test, meeting)</option>
+                </select>
+              </div>
+              <div class="ev-form-row">
+                <label>Product / Document</label>
+                <input type="text" id="evf-product" placeholder="e.g. PentaRay NAV ECO, or CM-000036-FM">
+              </div>
+              <div class="ev-form-row">
+                <label>Source (MAUDE MDR / Recall / SSED / Meeting)</label>
+                <input type="text" id="evf-source" placeholder="e.g. MAUDE MDR 13797074, Recall ID 125726, K172393 SSED">
+              </div>
+              <div class="ev-form-row">
+                <label>Detail</label>
+                <textarea id="evf-detail" rows="3" placeholder="What was observed and why it is relevant to this node..."></textarea>
+              </div>
+              <div class="ev-form-btns">
+                <button class="ev-save-btn" onclick="saveEvEntry()">Save entry</button>
+                <button class="ev-cancel-btn" onclick="hideEvForm()">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <button class="btn active" onclick="saveEdit()">Save  (Enter)</button>
       </div>
@@ -646,6 +726,21 @@ function updateHighlights(hovNode){
 }
 
 // ── Filters ────────────────────────────────────────────────────────
+let predicateFilterActive=false;
+function togglePredicateFilter(){
+  predicateFilterActive=!predicateFilterActive;
+  const btn=document.getElementById('f-pred');
+  btn.classList.toggle('on',predicateFilterActive);
+  btn.classList.toggle('off',!predicateFilterActive);
+  if(predicateFilterActive){
+    const cnt=nodes.filter(n=>(n.evidence||[]).some(e=>e.type==='predicate')).length;
+    btn.textContent=`⬡ Predicate Evidence (${cnt})`;
+    toast(`${cnt} node${cnt!==1?'s':''} with predicate evidence`);
+  } else {
+    btn.textContent='⬡ Predicate Evidence';
+  }
+  draw();updList();
+}
 function toggleFilter(key){
   filters[key]=!filters[key];
   const btn=document.getElementById('f-'+key);
@@ -865,6 +960,8 @@ function drawNode(n){
   const st=TS[n.type]||TS.hazard;
   const isSel=n===selected,isHov=n===hov;
   const dimmed=highlightIds.size>0&&!highlightIds.has(n.id);
+  // Predicate filter: dim nodes with no predicate evidence
+  const predDimmed=predicateFilterActive&&!(n.evidence||[]).some(e=>e.type==='predicate');
   // In connect mode with a source selected, dim nodes that are not valid targets
   const activeSrc=connectDrag||(connectMode&&connectSrc?connectSrc:null);
   const invalidTarget=activeSrc&&n!==activeSrc&&!isValidTarget(n);
@@ -874,6 +971,7 @@ function drawNode(n){
 
   ctx.save();
   if(invalidTarget) ctx.globalAlpha=0.18;
+  else if(predDimmed) ctx.globalAlpha=0.18;
   else if(dimmed) ctx.globalAlpha=0.22;
   else ctx.globalAlpha=1;
   if(isSel){ctx.shadowColor=st.bd;ctx.shadowBlur=10;}
@@ -885,6 +983,23 @@ function drawNode(n){
   if(searchMatch){ctx.strokeStyle='#ca8a04';ctx.lineWidth=2;ctx.stroke();}
   else{ctx.strokeStyle=(isSel||isHov)?st.bd:st.bd+'88';ctx.lineWidth=isSel?2:1;ctx.stroke();}
   ctx.shadowBlur=0;
+
+  // Predicate evidence ring: amber dashed outline
+  const hasEv=(n.evidence||[]).some(e=>e.type==='predicate');
+  if(hasEv){
+    ctx.save();
+    ctx.beginPath();ctx.roundRect(x-2,y-2,w+4,h+4,r+2);
+    ctx.strokeStyle='#f59e0b';ctx.lineWidth=2;
+    ctx.setLineDash([5*zoom,3*zoom]);
+    ctx.globalAlpha=predicateFilterActive?0.9:0.55;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Small amber dot top-right corner
+    ctx.beginPath();ctx.arc(x+w-5*zoom,y+5*zoom,4*zoom,0,Math.PI*2);
+    ctx.fillStyle='#f59e0b';ctx.globalAlpha=predicateFilterActive?1:0.7;
+    ctx.fill();
+    ctx.restore();
+  }
 
   ctx.beginPath();ctx.roundRect(x,y,w,3.5*zoom,[r,r,0,0]);
   ctx.fillStyle=st.bd;ctx.fill();
@@ -1027,7 +1142,7 @@ function hlText(text,query){
 function addNode(wx,wy,type){
   pushUndo();
   const L={hazard:'New Hazard',situation:'New Hazardous Situation',harm:'New Harm',control:'New Risk Control'};
-  const n={id:nextId++,type,label:L[type],x:wx,y:wy,w:190,h:60,notes:'',severity:null,postSeverity:null,postOccurrence:null,sequence:'',assessment:'',verification:''};
+  const n={id:nextId++,type,label:L[type],x:wx,y:wy,w:190,h:60,notes:'',severity:null,postSeverity:null,postOccurrence:null,sequence:'',assessment:'',verification:'',evidence:[]};
   nodes.push(n);selectNode(n);updAll();draw();
 }
 
@@ -1084,6 +1199,9 @@ function showEdit(n){
   }
   if(isSit){document.getElementById('ed-sequence').value=n.sequence||'';}
   if(isCtrl){document.getElementById('ed-verification').value=n.verification||'';}
+  // Populate evidence panel
+  hideEvForm();
+  renderEvList(n);
   // Show connections
   const conns=[];
   edges.forEach(e=>{
@@ -1161,6 +1279,78 @@ function saveEdit(){
   if(selected.type==='situation'){selected.sequence=document.getElementById('ed-sequence').value||'';}
   if(selected.type==='control'){selected.verification=document.getElementById('ed-verification').value||'';}
   updAll();draw();toast('Saved');
+}
+
+// ── Evidence functions ──────────────────────────────────────────────
+function showEvForm(){
+  document.getElementById('ev-form').style.display='block';
+  document.getElementById('evf-type').value='predicate';
+  document.getElementById('evf-product').value='';
+  document.getElementById('evf-source').value='';
+  document.getElementById('evf-detail').value='';
+  document.getElementById('evf-product').focus();
+}
+
+function hideEvForm(){
+  document.getElementById('ev-form').style.display='none';
+}
+
+function saveEvEntry(){
+  if(!selected)return;
+  const type=document.getElementById('evf-type').value;
+  const product=document.getElementById('evf-product').value.trim();
+  const source=document.getElementById('evf-source').value.trim();
+  const detail=document.getElementById('evf-detail').value.trim();
+  if(!product&&!detail){toast('Enter a product or detail');return;}
+  pushUndo();
+  if(!selected.evidence)selected.evidence=[];
+  selected.evidence.push({
+    type,
+    product,
+    source,
+    detail,
+    addedBy: currentUser||'',
+    addedAt: new Date().toISOString().slice(0,10)
+  });
+  hideEvForm();
+  renderEvList(selected);
+  updList();draw();
+  saveToSupabase();
+  toast('Evidence entry saved');
+}
+
+function deleteEvEntry(nodeId,idx){
+  const n=nodes.find(x=>x.id===nodeId);
+  if(!n||!n.evidence)return;
+  pushUndo();
+  n.evidence.splice(idx,1);
+  renderEvList(n);
+  updList();draw();
+  saveToSupabase();
+}
+
+function renderEvList(n){
+  const el=document.getElementById('ev-list');
+  if(!el)return;
+  const ev=n?n.evidence||[]:[];
+  if(!ev.length){
+    el.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:4px 0">No evidence entries yet. Click + Add to log a source.</div>';
+    return;
+  }
+  el.innerHTML=ev.map((e,i)=>{
+    const isPred=e.type==='predicate';
+    const badge=isPred
+      ?'<span class="ev-badge ev-badge-pred">Predicate product</span>'
+      :'<span class="ev-badge ev-badge-int">Internal</span>';
+    const productLine=e.product?`<div class="ev-product">${e.product}</div>`:'';
+    const srcLine=e.source?`<div class="ev-src">${e.source}</div>`:'';
+    const detailLine=e.detail?`<div class="ev-detail">${e.detail}</div>`:'';
+    const meta=e.addedBy||e.addedAt?`<div style="font-size:10px;color:var(--text3);margin-top:4px">${[e.addedBy,e.addedAt].filter(Boolean).join(' · ')}</div>`:'';
+    return `<div class="ev-item" data-evtype="${e.type}">
+      <button class="ev-del-btn" onclick="deleteEvEntry(${n.id},${i})" title="Remove entry">✕</button>
+      ${badge}${productLine}${srcLine}${detailLine}${meta}
+    </div>`;
+  }).join('');
 }
 
 function deleteSelected(){
@@ -1725,7 +1915,21 @@ function loadSample(){
       label:'Spline fracture: film-coated PCB spline over-deployed beyond rated diameter',
       x:-155, y:-145,
       sequence:'1. Operator deploys basket beyond 65 mm maximum rated diameter\n2. PCB film stress exceeds fatigue or yield limit\n3. Spline fractures and fragment detaches intracardially',
-      notes:'UN-006; UN-032; basket diameter range 6–65 mm (UN-026); 14 PSI withstand requirement'},
+      notes:'UN-006; UN-032; basket diameter range 6–65 mm (UN-026); 14 PSI withstand requirement',
+      evidence:[
+        {type:'predicate', product:'PentaRay NAV ECO (Biosense Webster)',
+         source:'MAUDE MDR 13797074',
+         detail:'During AFib ablation in LA, PentaRay became entangled with a concurrent catheter. One spline fractured and detached. Physician used a snare to retrieve the fragment — patient stable, no surgical intervention required. Root cause confirmed as mid-body spline fracture under entanglement load (not over-deployment). Note: initiating event was entanglement, not over-deployment — review whether sequence of events for id:9 should include entanglement as an alternative trigger.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
+        {type:'predicate', product:'PentaRay NAV ECO (Biosense Webster)',
+         source:'MAUDE MDR 17879204',
+         detail:'Shaft semi-detachment at tip-to-shaft junction during AFib procedure. Shaft found semi-detached near tip on inspection; unknown whether internal wires exposed. Replaced with new device; no patient harm. Connects to PentaRay Recall ID 125726 whose confirmed root cause was insufficient bond of distal tip to catheter shaft (lot-specific manufacturing defect). Relevant to Atlas hub-to-spline bonding process controls.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
+        {type:'predicate', product:'PentaRay NAV ECO — Recall IDs 125726, 159886, 145208, 181285',
+         source:'FDA Recall database (4× Class 2 recalls)',
+         detail:'Four separate Class 2 recalls on PentaRay NAV and NAV ECO catheters. Confirmed root cause for earliest series: insufficient bond of distal tip to catheter shaft (lot-specific). All Class 2 (not Class 1). No patient injuries attributed. Pattern indicates spline-attachment bond is a manufacturing process-sensitive joint requiring incoming inspection and lot-level qualification — not just a design specification.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
+      ]},
 
     // id:10  Kinetic → tissue denudation (UN-008)
     {id:10, type:'situation',
@@ -1739,35 +1943,85 @@ function loadSample(){
       label:'Failed retraction: basket does not fully retract into sheath on withdrawal',
       x:-155, y: 145,
       sequence:'1. Basket spline kinks or catches on sheath lip during retraction\n2. Partial deployment persists despite deflation\n3. Operator applies excessive withdrawal force\n4. Spline or PCB fragment separates and remains in vasculature',
-      notes:'UN-014 recapturability; UN-039 emergency recapture time TBD; retractability cycling ≥100 cycles'},
+      notes:'UN-014 recapturability; UN-039 emergency recapture time TBD; retractability cycling ≥100 cycles',
+      evidence:[
+        {type:'predicate', product:'HDGrid Advisor (Abbott)',
+         source:'MAUDE MDR 22177493',
+         detail:'Paddle separated from distal shaft during retrograde LV approach when operator pulled catheter back through a kinked sheath. Snare retrieval required. Manufacturer root cause: force applied against IFU instruction ("do not use force to advance or withdraw when resistance is encountered"). Mitigation relied entirely on labeling, not engineering controls. Directly analogous to Atlas basket retraction: if basket catches on sheath lip and operator applies force, fragment separation is the failure mode.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
+        {type:'predicate', product:'Octaray (Biosense Webster)',
+         source:'MAUDE MDR 17971099',
+         detail:'During SVT ablation, Octaray shaft kinked in a tortuous vein on approach to heart. Deflection mechanism locked in fully deflected position — knob could not be moved up or down. Catheter could not be withdrawn through original sheath. Physician had to cut the proximal shaft and advance a long sheath over it to straighten and remove. No patient consequence. Root cause: shaft kink prevented deflection release. Relevant to UN-039 emergency recapture time — test protocol should include a tortuous delivery path condition, not just straight access.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
+      ]},
 
     // id:12  Fluid/air → air embolism → embolic stroke (UN-010)
     {id:12, type:'situation',
       label:'Air embolism: incomplete saline purge leaves air in inflation lumen prior to insertion',
       x:-155, y: 295,
       sequence:'1. Operator does not complete saline purge per IFU priming protocol\n2. Air remains in inflation lumen\n3. Air bolus introduced into intracardiac space on basket deployment\n4. Air travels via coronary or cerebral circulation',
-      notes:'UN-010; Atlas inflation path shall be sealed and air-tight (UN-010); CM-000023-OP §3.4'},
+      notes:'UN-010; Atlas inflation path shall be sealed and air-tight (UN-010); CM-000023-OP §3.4',
+      evidence:[
+        {type:'predicate', product:'Constellation (Boston Scientific)',
+         source:'Cleared IFU (EP-284328-AA) — labeled risk',
+         detail:'Constellation IFU contains multi-step sheath-flushing precaution: "To minimise risk of air embolus, flush the Soft Tip Sheath to remove all air before introduction into vasculature. The introduction of the Constellation Catheter into the Soft Tip Sheath also has the potential to introduce air. Therefore, during introduction, again aspirate fluid to expel any air." FDA accepted this as a labeled precaution rather than requiring an engineering control. Most explicit air embolism precaution of all six predicates reviewed — relevant to Atlas IFU priming protocol language and warning prominence.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
+        {type:'predicate', product:'HDGrid Advisor (Abbott)',
+         source:'Cleared IFU (Abbott) — labeled warning',
+         detail:'HDGrid IFU states: "Always verify the tubing and catheter have been properly cleared of air prior to inserting the catheter into the vasculature since entrapped air can cause potential injury or fatality." Consistent with Constellation approach: air embolism controlled via labeling/IFU priming step rather than engineering solution.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
+      ]},
 
     // id:13  Fluid/air → lumen rupture (UN-032)
     {id:13, type:'situation',
       label:'Inflation lumen rupture: pressure exceeds 14 PSI withstand limit',
       x:-155, y: 445,
       sequence:'1. Inflation lumen or seal fails under excessive pressure\n2. Fluid or air released into intracardiac space\n3. Pressure loss results in uncontrolled basket expansion or deflation',
-      notes:'UN-032; 14 PSI withstand = 2× safety margin above nominal operating pressure'},
+      notes:'UN-032; 14 PSI withstand = 2× safety margin above nominal operating pressure',
+      evidence:[
+        {type:'predicate', product:'Optrell (Biosense Webster)',
+         source:'MAUDE MDR 19140593',
+         detail:'During AFib ablation, irrigation lumen became occluded mid-procedure — flow ceased after catheter exchange. On return evaluation, irrigation tube found kinked close to the tip section. Procedure completed with replacement device; no patient harm. Note: this is a kink/occlusion failure, not a rupture — the failure mode manifests as failed deployment/retraction rather than a pressure event. Relevant to Atlas inflation lumen routing: kinking at the distal shaft-to-tip transition is a separate failure mode from pressure rupture and should be added as a distinct FMEA entry.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
+        {type:'predicate', product:'PentaRay NAV (Biosense Webster)',
+         source:'MAUDE MDR 3785579',
+         detail:'Irrigation tube kinked close to tip during pre-flush — same root cause as Optrell MDR 19140593. Confirms this is a class-wide failure mode for irrigated multi-spline mapping catheters. Both cases: tube kinks at the transition from flexible shaft to constrained distal structure. For Atlas, the inflation lumen has this same transition geometry. Minimum bend radius at the distal junction and lumen securement method are the relevant design controls.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
+      ]},
 
     // id:14  Biological → hemodynamic obstruction (UN-012)
     {id:14, type:'situation',
       label:'Hemodynamic compromise: basket obstructs inflow or outflow across cardiac valve or outflow tract',
       x:-155, y: 590,
       sequence:'1. Atlas deployed across a valve plane or within an outflow tract\n2. Basket cross-section obstructs inflow (e.g. mitral/tricuspid) or outflow (e.g. LVOT/RVOT)\n3. Blood flow impeded beyond hemodynamically recoverable threshold\n4. Clinical intervention required (vasopressors, emergent device removal)',
-      notes:'UN-012; risks include both inflow limitation and outflow limitation per design record 3/19; open lattice design required; quantitative obstruction threshold TBD — may require animal study to evaluate'},
+      notes:'UN-012; risks include both inflow limitation and outflow limitation per design record 3/19; open lattice design required; quantitative obstruction threshold TBD — may require animal study to evaluate',
+      evidence:[
+        {type:'predicate', product:'Constellation (Boston Scientific)',
+         source:'Cleared IFU (EP-284328-AA) — labeled contraindication and warning',
+         detail:'Constellation is the only basket-contact mapping catheter predicate and the closest structural analog for hemodynamic obstruction risk. IFU handling precautions: "Do not torque or rotate catheter while basket is deployed." "Do not advance against resistance." No ventricular use labeled. BSC approach: entirely labeling-based — no quantitative obstruction threshold established in any public document. No MDR for hemodynamic obstruction found in available MAUDE window. For Atlas at 65mm max diameter, the obstruction cross-section will exceed Constellation — quantitative threshold likely requires animal study or CFD rather than labeled precaution alone.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
+      ]},
 
     // id:15  Biological → thrombus formation (UN-009)
     {id:15, type:'situation',
       label:'Thrombus formation: blood stagnation at surface gaps or crevices on catheter',
       x:-155, y: 740,
       sequence:'1. Blood contacts gaps, crevices, or thrombogenic surfaces on Atlas exterior\n2. Stagnation promotes platelet activation and fibrin deposition\n3. Thrombus forms on catheter surface and may embolise on withdrawal',
-      notes:'UN-009; smooth surface design required; non-thrombogenic materials required; ISO 10993-4 biocompatibility'},
+      notes:'UN-009; smooth surface design required; non-thrombogenic materials required; ISO 10993-4 biocompatibility',
+      evidence:[
+        {type:'predicate', product:'Constellation (Boston Scientific)',
+         source:'Cleared IFU (EP-284328-AA) — labeled risk; IDE study G940612',
+         detail:'Only predicate IFU that explicitly names device geometry as a driver of thrombosis: "Preclinical and clinical testing show that small thrombi may attach to the basket and splines at locations where there is an abrupt change in geometry." FDA accepted this as a labeled warning (not a contraindication) rather than requiring it to be designed out. This is the strongest precedent for how FDA handles design-inherent thrombosis risk at basket geometry transitions. Relevant to Atlas open-lattice PCB spline junctions.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
+        {type:'predicate', product:'HDGrid Advisor (Abbott)',
+         source:'K172393 SSED — thrombogenicity testing',
+         detail:'HDGrid in vivo thrombogenicity testing (ACT >300, heparin) drove a labeled anticoagulation requirement for both right- and left-sided procedures. This is the most recent and stringent thrombogenicity test outcome in the predicate set — FDA accepted it as a labeled contraindication rather than a design change. Establishes that in vivo animal thrombogenicity study is expected for contact multi-electrode mapping catheters, and that results can drive labeled ACT requirements. Both the Constellation and HDGrid precedents confirm in vivo testing is required for this hazard class.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
+        {type:'predicate', product:'HDGrid Advisor (Abbott)',
+         source:'MAUDE MDR 10563649',
+         detail:'Patient experienced stroke symptoms ~60 min post-HDGrid procedure. Small clot confirmed on CT and successfully retrieved. ACT maintained >300 throughout. Causation to device could not be determined — classified as possible EP procedure complication. Confirms that even with anticoagulation at therapeutic levels, thromboembolic events occur in this patient population. Post-control occurrence for thrombus → stroke harm path should reflect residual risk even with anticoagulation protocol in place.',
+         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
+      ]},
 
     // id:16  Mapping → diagnostic error (UN-018, UN-021, UN-023)
     {id:16, type:'situation',
