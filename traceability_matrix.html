@@ -1,0 +1,3803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@9.0.0/build/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<title>Atlas 360 Traceability Matrix — Contour Medical</title>
+<style>
+:root{
+  --bg:#f2f4f8;--surface:#fff;--surface2:#f7f8fb;
+  --border:#dde1ea;--border2:#b8bfcc;
+  --text:#1a1d26;--text2:#4a5068;--text3:#8a93a8;
+  --accent:#2563eb;
+  --un:#7c3aed;--unbg:rgba(124,58,237,.10);--unbd:rgba(124,58,237,.30);
+  --sr:#2563eb;--srbg:rgba(37,99,235,.10);--srbd:rgba(37,99,235,.30);
+  --pr:#16a34a;--prbg:rgba(22,163,74,.10);--prbd:rgba(22,163,74,.30);
+  --ss:#d97706;--ssbg:rgba(217,119,6,.10);--ssbd:rgba(217,119,6,.30);
+  --do:#0891b2;--dobg:rgba(8,145,178,.10);--dobd:rgba(8,145,178,.30);
+  --warn:#dc2626;--warnbg:rgba(220,38,38,.10);--warnbd:rgba(220,38,38,.30);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13px;}
+
+/* toolbar */
+.toolbar{display:flex;align-items:center;gap:4px;padding:5px 10px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;}
+.tbar-title{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-right:4px;white-space:nowrap;}
+.btn{font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:500;padding:3px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);cursor:pointer;transition:background .12s;white-space:nowrap;}
+.btn:hover{background:#e8eaf0;}
+.btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn.primary:hover{background:#1d4ed8;}
+.btn.danger{border-color:rgba(220,38,38,.5);color:var(--warn);}
+.btn.danger:hover{background:#fff3f2;}
+.btn.tiny{font-size:11px;padding:2px 6px;}
+.sep{width:1px;height:18px;background:var(--border);margin:0 4px;flex-shrink:0;}
+.spacer{flex:1;}
+
+/* filter bar */
+.filter-bar{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;}
+.bulk-bar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#fef3c7;border-bottom:1px solid #f59e0b;flex-shrink:0;flex-wrap:wrap;}
+.bulk-bar .btn.small{padding:4px 9px;font-size:11px;}
+.bulk-bar .btn.danger{background:#dc2626;color:#fff;border-color:#b91c1c;}
+.bulk-bar .btn.danger:hover{background:#b91c1c;}
+.bulk-bar .btn.danger:disabled{background:#fca5a5;cursor:not-allowed;}
+#matrix-table.bulk-mode .id-pill{cursor:default;}
+.bulk-checkbox{width:14px;height:14px;cursor:pointer;}
+.bulk-cell{padding:0 6px 0 8px;width:24px;text-align:center;}
+.bulk-cell input[type="checkbox"]{margin:0;cursor:pointer;}
+tr.bulk-checked{background:#fef3c7 !important;}
+tr.bulk-checked td{background:#fef3c7 !important;}
+.filter-bar-label{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-right:2px;white-space:nowrap;}
+.search-input-top{font-family:'IBM Plex Sans',sans-serif;font-size:12px;padding:3px 8px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);outline:none;width:280px;}
+.search-input-top:focus{border-color:var(--accent);}
+.fbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;border:1px solid var(--border2);background:var(--surface);color:var(--text3);cursor:pointer;transition:all .12s;white-space:nowrap;}
+.fbtn:hover{color:var(--text2);}
+.fbtn.off{opacity:.38;text-decoration:line-through;}
+.fbtn.un.on{color:var(--un);border-color:var(--unbd);background:var(--unbg);}
+.fbtn.sr.on{color:var(--sr);border-color:var(--srbd);background:var(--srbg);}
+.fbtn.pr.on{color:var(--pr);border-color:var(--prbd);background:var(--prbg);}
+.fbtn.ss.on{color:var(--ss);border-color:var(--ssbd);background:var(--ssbg);}
+.fbtn.do.on{color:var(--do);border-color:var(--dobd);background:var(--dobg);}
+.fbtn.orph.on{color:var(--warn);border-color:var(--warnbd);background:var(--warnbg);}
+.fbtn.work.on{color:#d97706;border-color:rgba(217,119,6,.45);background:rgba(217,119,6,.10);}
+
+/* focus banner */
+.focus-banner{display:none;align-items:center;gap:8px;background:#fffbf0;border:1px solid rgba(184,110,0,.4);border-radius:4px;padding:3px 8px;font-size:11px;color:#b86e00;font-family:'IBM Plex Mono',monospace;font-weight:600;letter-spacing:.03em;}
+.focus-banner button{background:none;border:none;cursor:pointer;color:#b86e00;font-size:13px;line-height:1;padding:0;font-family:'IBM Plex Mono',monospace;font-weight:600;}
+.focus-banner button:hover{color:#7a4d00;}
+.btn.focus-on{background:#b86e00;border-color:#b86e00;color:#fff;}
+.btn.focus-on:hover{background:#9a5d00;}
+
+/* status pills */
+.status-pill{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;padding:1px 6px;border-radius:3px;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;}
+.status-pill.draft{background:rgba(138,147,168,.14);color:#6b7280;border:1px solid rgba(138,147,168,.45);}
+.status-pill.in-review{background:rgba(8,145,178,.10);color:#0891b2;border:1px solid rgba(8,145,178,.4);}
+.status-pill.approved{background:rgba(22,163,74,.10);color:#16a34a;border:1px solid rgba(22,163,74,.4);}
+.status-pill.obsolete{background:rgba(120,113,108,.12);color:#78716c;border:1px solid rgba(120,113,108,.4);text-decoration:line-through;}
+.work-flag{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;padding:1px 5px;border-radius:3px;letter-spacing:.04em;text-transform:uppercase;background:rgba(217,119,6,.10);color:#d97706;border:1px solid rgba(217,119,6,.4);margin-left:4px;}
+
+/* status indicator dot for matrix and tree */
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle;flex-shrink:0;}
+.status-dot.draft{background:#9ca3af;}
+.status-dot.in-review{background:#0891b2;}
+.status-dot.approved{background:#16a34a;}
+.status-dot.obsolete{background:#78716c;}
+.work-tick{display:inline-block;width:8px;height:8px;background:#d97706;clip-path:polygon(50% 0,100% 100%,0 100%);margin-right:4px;vertical-align:middle;flex-shrink:0;}
+
+/* comments */
+.comments-section{margin-top:12px;border-top:1px solid var(--border);padding-top:10px;}
+.comments-list{margin-bottom:8px;max-height:280px;overflow-y:auto;}
+.comment-entry{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px 9px;margin-bottom:6px;}
+.comment-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);}
+.comment-author{font-weight:600;color:var(--text2);}
+.comment-when{font-size:10px;}
+.comment-body{font-size:12px;color:var(--text);line-height:1.4;white-space:pre-wrap;}
+.comment-actions{margin-top:4px;display:flex;gap:8px;justify-content:flex-end;}
+.comment-actions button{background:none;border:none;cursor:pointer;color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;padding:0;}
+.comment-actions button:hover{color:var(--warn);}
+.comment-empty{font-size:11px;color:var(--text3);font-style:italic;padding:4px 0;}
+.comment-add{display:flex;flex-direction:column;gap:4px;}
+.comment-add textarea{min-height:50px;}
+.comment-add-row{display:flex;gap:5px;align-items:center;}
+.comment-add-row input{flex:1;font-size:11px;}
+.comment-add-row button{flex-shrink:0;}
+
+/* audit log entries */
+.al-entry{padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;line-height:1.4;}
+.al-entry:last-child{border-bottom:none;}
+.al-when{color:var(--text3);font-size:10px;font-family:'IBM Plex Mono',monospace;}
+.al-action{font-weight:600;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
+.al-action.create{color:#16a34a;}
+.al-action.delete{color:#dc2626;}
+.al-action.update{color:#2563eb;}
+.al-action.link{color:#7c3aed;}
+.al-action.unlink{color:#7c3aed;}
+.al-action.status{color:#0891b2;}
+.al-action.comment{color:#d97706;}
+.al-target{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text);font-weight:600;}
+.al-detail{color:var(--text2);font-size:11px;margin-top:2px;}
+.al-empty{font-size:12px;color:var(--text3);padding:16px 8px;text-align:center;font-style:italic;}
+
+/* status legend in toolbar */
+.status-legend{display:inline-flex;gap:8px;align-items:center;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;text-transform:uppercase;font-weight:600;margin-left:4px;}
+.status-legend .item{display:inline-flex;align-items:center;gap:4px;}
+
+/* main */
+.main{display:flex;flex:1;overflow:hidden;position:relative;min-height:0;}
+.content{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+
+/* matrix view */
+.matrix-wrap{flex:1;overflow:auto;background:var(--surface);}
+table.matrix{border-collapse:collapse;width:100%;font-size:12px;font-family:'IBM Plex Sans',sans-serif;}
+table.matrix thead{position:sticky;top:0;z-index:10;background:var(--surface2);}
+table.matrix th{padding:8px 10px;text-align:left;font-weight:600;font-size:10px;color:var(--text2);border-bottom:2px solid var(--border2);background:var(--surface2);white-space:nowrap;letter-spacing:.05em;text-transform:uppercase;font-family:'IBM Plex Mono',monospace;}
+table.matrix th.col-un{color:var(--un);}
+table.matrix th.col-sr{color:var(--sr);}
+table.matrix th.col-pr{color:var(--pr);}
+table.matrix th.col-ss{color:var(--ss);}
+table.matrix th.col-do{color:var(--do);}
+table.matrix td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;line-height:1.4;}
+table.matrix td.id-cell{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;white-space:nowrap;}
+table.matrix td.id-cell .id-pill{display:inline-block;padding:2px 7px;border-radius:3px;cursor:pointer;transition:all .12s;}
+table.matrix td.id-cell .id-pill:hover{filter:brightness(.96);}
+table.matrix td.id-cell .id-pill.un{background:var(--unbg);color:var(--un);border:1px solid var(--unbd);}
+table.matrix td.id-cell .id-pill.sr{background:var(--srbg);color:var(--sr);border:1px solid var(--srbd);}
+table.matrix td.id-cell .id-pill.pr{background:var(--prbg);color:var(--pr);border:1px solid var(--prbd);}
+table.matrix td.id-cell .id-pill.ss{background:var(--ssbg);color:var(--ss);border:1px solid var(--ssbd);}
+table.matrix td.id-cell .id-pill.do{background:var(--dobg);color:var(--do);border:1px solid var(--dobd);}
+table.matrix td.id-cell .id-pill.empty{background:transparent;color:var(--text3);border:1px dashed var(--border2);font-style:italic;}
+table.matrix tbody tr.row-hover-grp:hover td{background:#fafbfd;}
+table.matrix td.merged-top{border-top:2px solid var(--border2);}
+table.matrix td .desc{color:var(--text2);font-size:12px;}
+table.matrix td .desc.empty{color:var(--text3);font-style:italic;}
+table.matrix td .meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);margin-top:3px;}
+
+/* clickable cells */
+table.matrix td.clickable{cursor:pointer;}
+table.matrix td.clickable:hover{background:#f0f4ff !important;}
+table.matrix tr.selected-grp td{background:#f0f4ff !important;}
+
+/* hierarchy / tree view */
+.tree-wrap{flex:1;overflow:auto;background:var(--surface);padding:14px 18px;}
+.tree-un{margin-bottom:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);}
+.tree-un-hdr{padding:9px 12px;display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--unbg);border-bottom:1px solid var(--border);border-radius:6px 6px 0 0;}
+.tree-un-hdr:hover{background:rgba(124,58,237,.14);}
+.tree-un.collapsed .tree-un-hdr{border-radius:6px;border-bottom:none;}
+.tree-un.collapsed .tree-un-body{display:none;}
+.tree-caret{font-size:10px;color:var(--text3);width:10px;flex-shrink:0;margin-top:2px;font-family:'IBM Plex Mono',monospace;}
+.tree-id{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;padding:1px 6px;border-radius:3px;flex-shrink:0;}
+.tree-id.un{color:var(--un);background:rgba(255,255,255,.6);border:1px solid var(--unbd);}
+.tree-id.sr{color:var(--sr);background:var(--srbg);border:1px solid var(--srbd);}
+.tree-id.pr{color:var(--pr);background:var(--prbg);border:1px solid var(--prbd);}
+.tree-id.ss{color:var(--ss);background:var(--ssbg);border:1px solid var(--ssbd);}
+.tree-id.do{color:var(--do);background:var(--dobg);border:1px solid var(--dobd);}
+.tree-text{flex:1;font-size:13px;line-height:1.4;color:var(--text);}
+.tree-text.empty{color:var(--text3);font-style:italic;font-size:12px;}
+.tree-actions{display:flex;gap:4px;flex-shrink:0;}
+.tree-un-body{padding:4px 14px 8px 14px;}
+.tree-sr{margin:6px 0 0 14px;border-left:2px solid var(--srbd);padding-left:10px;}
+.tree-sr-hdr{display:flex;align-items:flex-start;gap:8px;padding:5px 4px;border-radius:4px;cursor:pointer;}
+.tree-sr-hdr:hover{background:var(--srbg);}
+.tree-sr.collapsed .tree-sr-body{display:none;}
+.tree-pr{margin:4px 0 0 16px;border-left:2px solid var(--prbd);padding-left:10px;}
+.tree-pr-hdr{display:flex;align-items:flex-start;gap:8px;padding:4px;border-radius:4px;cursor:pointer;}
+.tree-pr-hdr:hover{background:var(--prbg);}
+.tree-pr.collapsed .tree-pr-body{display:none;}
+.tree-ss{margin:3px 0 0 16px;display:flex;align-items:flex-start;gap:8px;padding:3px 4px;border-radius:4px;border-left:2px solid var(--ssbd);padding-left:10px;}
+.tree-ss:hover{background:var(--ssbg);}
+.tree-empty-msg{font-size:12px;color:var(--text3);font-style:italic;padding:6px 10px;}
+.tree-add-btn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:2px 7px;border-radius:3px;border:1px dashed var(--border2);background:transparent;color:var(--text3);cursor:pointer;}
+.tree-add-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* graph view */
+.graph-wrap{flex:1;position:relative;background:var(--surface);overflow:hidden;}
+#graph-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;}
+#graph-canvas.grabbing{cursor:grabbing;}
+.graph-controls{position:absolute;bottom:14px;left:14px;display:flex;gap:4px;align-items:center;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:5px;padding:4px 6px;box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.graph-controls .btn.tiny{padding:3px 8px;font-size:11px;}
+.graph-zoom-pct{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);padding:0 4px;font-weight:600;min-width:40px;text-align:center;}
+.graph-legend{position:absolute;top:14px;left:14px;display:flex;gap:14px;align-items:center;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:5px;padding:6px 12px;font-size:11px;color:var(--text2);box-shadow:0 2px 8px rgba(0,0,0,.06);}
+.gl-item{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:10px;letter-spacing:.04em;text-transform:uppercase;}
+.gl-dot{display:inline-block;width:9px;height:9px;border-radius:2px;}
+.gl-dot.un{background:var(--un);}
+.gl-dot.sr{background:var(--sr);}
+.gl-dot.pr{background:var(--pr);}
+.gl-dot.ss{background:var(--ss);}
+
+/* side panel */
+.panel{width:340px;min-width:240px;max-width:560px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:row;overflow:hidden;flex-shrink:0;position:relative;}
+.panel.collapsed{width:18px;}
+.panel.collapsed .panel-inner{opacity:0;pointer-events:none;}
+.panel-inner{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.panel-toggle{width:18px;height:40px;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3);flex-shrink:0;align-self:center;border:none;border-right:1px solid var(--border);}
+.panel.collapsed .panel-toggle{border-right:none;border-left:1px solid var(--border);}
+.panel-toggle:hover{background:var(--surface2);color:var(--text);}
+.panel-resize-handle{width:5px;height:100%;cursor:col-resize;background:transparent;flex-shrink:0;position:absolute;left:0;top:0;z-index:10;transition:background .15s;}
+.panel-resize-handle:hover,.panel-resize-handle.dragging{background:var(--accent);opacity:.4;}
+.panel-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.ptab{flex:1;padding:6px 4px;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-family:'IBM Plex Mono',monospace;color:var(--text3);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:color .15s;}
+.ptab:hover{color:var(--text2);}
+.ptab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-body{flex:1;overflow-y:auto;padding:10px 12px;min-height:0;}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+
+.ep-lbl{display:block;font-size:10px;color:var(--text3);margin-bottom:3px;margin-top:9px;font-family:'IBM Plex Mono',monospace;letter-spacing:.05em;text-transform:uppercase;font-weight:600;}
+.ep-lbl:first-child{margin-top:0;}
+.tab-body input,.tab-body select,.tab-body textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;padding:5px 8px;font-family:'IBM Plex Sans',sans-serif;outline:none;resize:vertical;transition:border-color .12s;}
+.tab-body textarea{min-height:60px;font-size:12px;line-height:1.4;}
+.tab-body input:focus,.tab-body select:focus,.tab-body textarea:focus{border-color:var(--accent);}
+.tab-body input.id-input{font-family:'IBM Plex Mono',monospace;font-weight:500;}
+
+.linked-section{margin-top:12px;border-top:1px solid var(--border);padding-top:10px;}
+.linked-hdr{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;}
+.link-chip{display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:2px 6px;border-radius:3px;margin:2px 3px 2px 0;cursor:pointer;}
+.link-chip.un{background:var(--unbg);color:var(--un);border:1px solid var(--unbd);}
+.link-chip.sr{background:var(--srbg);color:var(--sr);border:1px solid var(--srbd);}
+.link-chip.pr{background:var(--prbg);color:var(--pr);border:1px solid var(--prbd);}
+.link-chip.ss{background:var(--ssbg);color:var(--ss);border:1px solid var(--ssbd);}
+.link-chip:hover{filter:brightness(.96);}
+.link-chip .x{margin-left:3px;color:var(--text3);font-weight:600;cursor:pointer;}
+.link-chip .x:hover{color:var(--warn);}
+.link-add{display:flex;gap:4px;margin-top:6px;}
+.link-add select{flex:1;}
+
+.empty-state{text-align:center;padding:30px 20px;color:var(--text3);font-size:12px;line-height:1.6;}
+.empty-state .big{font-size:14px;color:var(--text2);margin-bottom:6px;font-weight:500;}
+
+/* stats */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
+.stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:7px 9px;}
+.stat-num{font-size:18px;font-weight:600;font-family:'IBM Plex Mono',monospace;line-height:1;}
+.stat-num.un{color:var(--un);}
+.stat-num.sr{color:var(--sr);}
+.stat-num.pr{color:var(--pr);}
+.stat-num.ss{color:var(--ss);}
+.stat-num.warn{color:var(--warn);}
+.stat-lbl{font-size:10px;color:var(--text3);margin-top:2px;line-height:1.3;font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;text-transform:uppercase;}
+
+/* gaps tab */
+.gap-section{margin-bottom:14px;}
+.gap-hdr{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:4px 2px 5px;border-bottom:1px solid var(--border);margin-bottom:6px;}
+.gap-item{display:flex;align-items:flex-start;gap:7px;padding:6px 8px;border-radius:4px;margin-bottom:3px;background:var(--surface2);border:1px solid var(--border);cursor:pointer;font-size:11px;line-height:1.4;}
+.gap-item:hover{border-color:var(--border2);background:var(--surface);}
+.gap-item .gid{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:10px;flex-shrink:0;}
+.gap-empty{font-size:11px;color:var(--text3);padding:10px 4px;line-height:1.5;font-style:italic;}
+
+/* status bar */
+.status-bar{padding:3px 12px;background:var(--surface);border-top:1px solid var(--border);font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0;display:flex;gap:14px;align-items:center;}
+.status-bar .right{margin-left:auto;}
+#sync-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 8px;border-radius:3px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:default;white-space:nowrap;}
+#sync-badge.saving{border-color:rgba(184,110,0,.4);background:#fffbf0;color:#b86e00;}
+#sync-badge.saved{border-color:rgba(22,163,74,.3);background:rgba(22,163,74,.08);color:#16a34a;}
+
+/* modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(26,29,38,.45);display:none;align-items:center;justify-content:center;z-index:500;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--surface);border-radius:8px;padding:20px 24px;width:440px;max-width:92vw;max-height:88vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.16);}
+.modal h3{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text);}
+.modal-actions{display:flex;gap:6px;justify-content:flex-end;margin-top:16px;border-top:1px solid var(--border);padding-top:14px;}
+
+/* toast */
+.toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#1a1d26;color:#fff;font-size:12px;padding:6px 14px;border-radius:20px;pointer-events:none;opacity:0;transition:opacity .2s;z-index:600;white-space:nowrap;}
+.toast.show{opacity:1;}
+
+/* search highlight */
+mark{background:#fef08a;border-radius:2px;padding:0;}
+
+::-webkit-scrollbar{width:7px;height:7px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--text3);}
+</style>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <span class="tbar-title">Atlas 360 Traceability <span style="color:var(--text3);font-weight:400;">build 11</span></span>
+  <button class="btn active" id="view-matrix">Matrix</button>
+  <button class="btn" id="view-tree">Hierarchy</button>
+  <button class="btn" id="view-graph">Graph</button>
+  <span class="sep"></span>
+  <button class="btn" id="focus-btn" title="Show only the selected requirement and its connected chain (F)">Focus</button>
+  <button class="btn" id="bulk-toggle" title="Multi-select rows in the matrix to apply bulk actions">Bulk select</button>
+  <span class="sep"></span>
+  <button class="btn" id="add-un">+ User Need</button>
+  <button class="btn" id="add-sr">+ System Req</button>
+  <button class="btn" id="add-pr">+ Product Req</button>
+  <button class="btn" id="add-ss">+ Verification</button>
+  <span class="sep"></span>
+  <button class="btn" id="import-btn">Import .xlsx</button>
+  <button class="btn primary" id="export-btn">Export .xlsx</button>
+  <button class="btn primary" id="export-docx-btn" title="Export 3 Word documents (User Needs, System Reqs, Atlas Reqs) using the Contour Medical templates">Export Word</button>
+  <input type="file" id="file-input" accept=".xlsx" style="display:none;">
+  <span class="sep"></span>
+  <button class="btn" id="backup-btn" title="Download a JSON snapshot of all data">Backup</button>
+  <button class="btn" id="restore-btn" title="Restore from a JSON backup">Restore</button>
+  <input type="file" id="restore-file-input" accept=".json" style="display:none;">
+  <span class="sep"></span>
+  <button class="btn danger" id="clear-btn">Clear All</button>
+  <span class="spacer"></span>
+  <span id="sync-badge" class="saved">Local</span>
+</div>
+
+<!-- BULK ACTION BAR (shown when bulk select mode is active) -->
+<div class="bulk-bar" id="bulk-bar" style="display:none;">
+  <span class="filter-bar-label" style="color:var(--text);">Bulk:</span>
+  <span id="bulk-count" style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--text);background:var(--surface);border:1px solid var(--border);padding:3px 8px;border-radius:4px;">0 selected</span>
+  <span class="sep"></span>
+  <button class="btn small" id="bulk-status">Status…</button>
+  <button class="btn small" id="bulk-category">Category…</button>
+  <button class="btn small" id="bulk-owner">Owner…</button>
+  <button class="btn small" id="bulk-work">Work needed…</button>
+  <span class="sep"></span>
+  <button class="btn small danger" id="bulk-delete">Delete selected</button>
+  <span class="spacer" style="flex:1;"></span>
+  <button class="btn small" id="bulk-select-all" title="Select every visible requirement in the matrix">Select all visible</button>
+  <button class="btn small" id="bulk-clear">Clear selection</button>
+  <button class="btn small" id="bulk-exit">Exit bulk mode</button>
+</div>
+
+<!-- FILTER BAR -->
+<div class="filter-bar">
+  <span class="filter-bar-label">Search</span>
+  <input type="text" class="search-input-top" id="search-input" placeholder="Search ID or description...">
+  <span class="sep"></span>
+  <span class="filter-bar-label">Show</span>
+  <button class="fbtn un on" data-filter="un">User Need</button>
+  <button class="fbtn sr on" data-filter="sr">System Req</button>
+  <button class="fbtn pr on" data-filter="pr">Product Req</button>
+  <button class="fbtn ss on" data-filter="ss">Verification</button>
+  <button class="fbtn do on" data-filter="do">Design Output</button>
+  <span class="sep"></span>
+  <button class="fbtn orph" data-filter="orphans">Orphans only</button>
+  <button class="fbtn work" data-filter="work">Work needed only</button>
+  <span class="spacer" style="flex:1;"></span>
+  <div class="focus-banner" id="focus-banner">
+    <span id="focus-label">Focused on: —</span>
+    <button onclick="clearFocus()" title="Exit focus">✕ Exit focus</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="content">
+    <div class="matrix-wrap" id="matrix-wrap">
+      <table class="matrix" id="matrix-table">
+        <thead>
+          <tr>
+            <th class="col-un" colspan="2">User Need</th>
+            <th class="col-sr" colspan="2">System Requirement</th>
+            <th class="col-pr" colspan="2">Product Requirement</th>
+            <th class="col-ss" colspan="2">Verification</th>
+            <th class="col-do">Design Output / Part #</th>
+          </tr>
+          <tr>
+            <th class="col-un">ID</th>
+            <th class="col-un">Description</th>
+            <th class="col-sr">ID</th>
+            <th class="col-sr">Description</th>
+            <th class="col-pr">ID</th>
+            <th class="col-pr">Description</th>
+            <th class="col-ss">ID</th>
+            <th class="col-ss">Description</th>
+            <th class="col-do">Part #</th>
+          </tr>
+        </thead>
+        <tbody id="matrix-body"></tbody>
+      </table>
+    </div>
+    <div class="tree-wrap" id="tree-wrap" style="display:none;"></div>
+    <div class="graph-wrap" id="graph-wrap" style="display:none;">
+      <canvas id="graph-canvas"></canvas>
+      <div class="graph-controls">
+        <button class="btn tiny" id="graph-layout" title="Re-run auto-layout to clean up node positions">Layout</button>
+        <button class="btn tiny" id="graph-fit" title="Fit to screen">Fit</button>
+        <button class="btn tiny" id="graph-zoom-in" title="Zoom in">+</button>
+        <button class="btn tiny" id="graph-zoom-out" title="Zoom out">−</button>
+        <span class="graph-zoom-pct" id="graph-zoom-pct">100%</span>
+      </div>
+      <div class="graph-legend">
+        <span class="gl-item"><span class="gl-dot un"></span> User Need</span>
+        <span class="gl-item"><span class="gl-dot sr"></span> System</span>
+        <span class="gl-item"><span class="gl-dot pr"></span> Product</span>
+        <span class="gl-item"><span class="gl-dot ss"></span> Verification</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="panel" id="panel">
+    <div class="panel-resize-handle" id="resize-handle"></div>
+    <button class="panel-toggle" id="panel-toggle">‹</button>
+    <div class="panel-inner">
+      <div class="panel-tabs">
+        <button class="ptab active" data-tab="edit">Edit</button>
+        <button class="ptab" data-tab="overview">Overview</button>
+        <button class="ptab" data-tab="gaps">Gaps</button>
+        <button class="ptab" data-tab="audit">Audit</button>
+      </div>
+      <div class="tab-body">
+
+        <!-- Edit pane -->
+        <div class="tab-pane active" id="tab-edit">
+          <div id="edit-empty" class="empty-state">
+            <div class="big">No selection</div>
+            Click an ID in the matrix or hierarchy to edit.<br>Use the <b>+</b> buttons in the toolbar to add new requirements.
+          </div>
+          <div id="edit-form" style="display:none;">
+            <span class="ep-lbl">Type</span>
+            <input type="text" id="ef-type" readonly>
+            <span class="ep-lbl">ID</span>
+            <input type="text" id="ef-id" class="id-input">
+            <div class="two-col" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <div>
+                <span class="ep-lbl">Status</span>
+                <select id="ef-status">
+                  <option value="draft">Draft</option>
+                  <option value="in-review">In Review</option>
+                  <option value="approved">Approved</option>
+                  <option value="obsolete">Obsolete</option>
+                </select>
+              </div>
+              <div>
+                <span class="ep-lbl">Work Needed</span>
+                <select id="ef-work">
+                  <option value="false">No</option>
+                  <option value="true">Yes — content gaps / TBDs</option>
+                </select>
+              </div>
+            </div>
+            <div id="ef-category-wrap" style="display:none;">
+              <span class="ep-lbl">Category</span>
+              <select id="ef-category"></select>
+            </div>
+            <span class="ep-lbl">Owner</span>
+            <input type="text" id="ef-owner" list="ef-owner-options" placeholder="Person assigned to drive this requirement">
+            <datalist id="ef-owner-options"></datalist>
+            <span class="ep-lbl">Description</span>
+            <textarea id="ef-desc" rows="4"></textarea>
+            <span class="ep-lbl" id="ef-do-lbl" style="display:none;">Design Output / Part #</span>
+            <input type="text" id="ef-do" style="display:none;">
+            <span class="ep-lbl">Notes</span>
+            <textarea id="ef-notes" rows="3" placeholder="Open questions, owner, decisions, references..."></textarea>
+
+            <div class="linked-section" id="ef-parents-sec">
+              <div class="linked-hdr"><span id="ef-parents-lbl">Parents</span></div>
+              <div id="ef-parents"></div>
+              <div class="link-add">
+                <select id="ef-parent-select"><option value="">+ Add parent link...</option></select>
+              </div>
+            </div>
+
+            <div class="linked-section" id="ef-children-sec">
+              <div class="linked-hdr"><span id="ef-children-lbl">Children</span></div>
+              <div id="ef-children"></div>
+              <div class="link-add">
+                <select id="ef-child-select"><option value="">+ Add child link...</option></select>
+              </div>
+            </div>
+
+            <div class="comments-section">
+              <div class="linked-hdr"><span>Comments <span id="ef-comments-count" style="color:var(--text3);">(0)</span></span></div>
+              <div class="comments-list" id="ef-comments-list"></div>
+              <div class="comment-add">
+                <textarea id="ef-comment-text" placeholder="Add a comment..."></textarea>
+                <div class="comment-add-row">
+                  <input type="text" id="ef-comment-author" placeholder="Your name (optional)">
+                  <button class="btn primary tiny" id="ef-comment-add">Post</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="ep-lbl" style="font-size:9.5px;margin-top:14px;">Metadata</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);line-height:1.6;">
+              <div id="ef-meta-created">Created: —</div>
+              <div id="ef-meta-updated">Updated: —</div>
+            </div>
+
+            <div style="display:flex;gap:6px;margin-top:14px;">
+              <button class="btn primary" id="ef-save" style="flex:1;">Save</button>
+              <button class="btn danger" id="ef-delete">Delete</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Overview -->
+        <div class="tab-pane" id="tab-overview">
+          <div class="stats">
+            <div class="stat-card"><div class="stat-num un" id="ov-un">0</div><div class="stat-lbl">User Needs</div></div>
+            <div class="stat-card"><div class="stat-num sr" id="ov-sr">0</div><div class="stat-lbl">System Reqs</div></div>
+            <div class="stat-card"><div class="stat-num pr" id="ov-pr">0</div><div class="stat-lbl">Product Reqs</div></div>
+            <div class="stat-card"><div class="stat-num ss" id="ov-ss">0</div><div class="stat-lbl">Verifications</div></div>
+          </div>
+          <div class="stats">
+            <div class="stat-card"><div class="stat-num" id="ov-links">0</div><div class="stat-lbl">Trace Links</div></div>
+            <div class="stat-card"><div class="stat-num warn" id="ov-orphans">0</div><div class="stat-lbl">Orphans</div></div>
+          </div>
+          <div style="font-size:11px;color:var(--text3);line-height:1.5;margin-top:14px;font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;text-transform:uppercase;font-weight:600;">Coverage</div>
+          <div id="coverage-list" style="margin-top:6px;"></div>
+        </div>
+
+        <!-- Gaps -->
+        <div class="tab-pane" id="tab-gaps">
+          <div class="gap-section">
+            <div class="gap-hdr">User Needs without System Reqs</div>
+            <div id="gap-un"></div>
+          </div>
+          <div class="gap-section">
+            <div class="gap-hdr">System Reqs without parent User Need</div>
+            <div id="gap-sr-up"></div>
+          </div>
+          <div class="gap-section">
+            <div class="gap-hdr">System Reqs without Product Reqs</div>
+            <div id="gap-sr-down"></div>
+          </div>
+          <div class="gap-section">
+            <div class="gap-hdr">Product Reqs without parent System Req</div>
+            <div id="gap-pr"></div>
+          </div>
+          <div class="gap-section">
+            <div class="gap-hdr">Verifications without parent Product Req</div>
+            <div id="gap-ss"></div>
+          </div>
+          <div class="gap-section">
+            <div class="gap-hdr">Requirements with Work Needed flag</div>
+            <div id="gap-work"></div>
+          </div>
+          <div class="gap-section">
+            <div class="gap-hdr">Possible duplicates <span style="color:var(--text3);font-weight:400;font-size:10px;">(SR or PR sharing first 60 characters of description)</span></div>
+            <div id="gap-dupes"></div>
+          </div>
+        </div>
+
+        <!-- Audit log -->
+        <div class="tab-pane" id="tab-audit">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);font-family:'IBM Plex Mono',monospace;">Recent activity</span>
+            <button class="btn tiny" id="audit-clear" title="Clear the audit log (cannot be undone)">Clear</button>
+          </div>
+          <div id="audit-list"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar">
+  <span id="status-counts">0 reqs</span>
+  <span class="right" id="status-time"></span>
+  <a href="#" id="clear-link" style="color:#dc2626;text-decoration:underline;font-size:10px;cursor:pointer;" title="Wipes localStorage and reloads">Wipe data &amp; reload</a>
+</div>
+
+<script>
+// Inline backup clear handler — bound here, before any other scripts run,
+// so it's guaranteed to attach even if a later script throws.
+document.getElementById('clear-link').addEventListener('click', function(e){
+  e.preventDefault();
+  if(!confirm('Wipe ALL traceability data from this browser and reload? Cannot be undone.')) return;
+  try{ localStorage.removeItem('atlas360_traceability_v1'); }catch(err){}
+  location.reload();
+});
+// Also bind clear-btn here as a backup in case the main script fails
+(function(){
+  var btn = document.getElementById('clear-btn');
+  if(!btn) return;
+  btn.addEventListener('click', function(e){
+    if(!confirm('Clear ALL requirements? This cannot be undone.')) return;
+    try{ localStorage.removeItem('atlas360_traceability_v1'); }catch(err){}
+    location.reload();
+  });
+})();
+</script>
+
+<!-- MODAL (for new requirement creation) -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">New Requirement</h3>
+    <span class="ep-lbl">ID</span>
+    <input type="text" id="modal-id" class="id-input" placeholder="UN-001">
+    <span class="ep-lbl">Description</span>
+    <textarea id="modal-desc" rows="4" placeholder="Describe the requirement..."></textarea>
+    <div id="modal-do-wrap" style="display:none;">
+      <span class="ep-lbl">Design Output / Part #</span>
+      <input type="text" id="modal-do" placeholder="XXXX-XX">
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="modal-cancel">Cancel</button>
+      <button class="btn primary" id="modal-create">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ========================================================================
+   DATA LAYER
+   ------------------------------------------------------------------------
+   All requirements stored as objects keyed by ID. Links are lists of IDs.
+   Editing description in one place updates everywhere because every place
+   that displays a requirement reads through the central store by ID.
+
+   Schema:
+     state.un[id]  = {id, desc}
+     state.sr[id]  = {id, desc, parents:[unId,...]}
+     state.pr[id]  = {id, desc, parents:[srId,...]}
+     state.ss[id]  = {id, desc, parents:[prId,...], do:''}
+
+   Persistence: localStorage now. Swap to Supabase later by replacing
+   loadState() / saveState() with async equivalents.
+   ======================================================================== */
+
+const STORAGE_KEY = 'atlas360_traceability_v1';
+const SCHEMA_VERSION = 5;
+
+const state = {
+  un: {},   // user needs
+  sr: {},   // system reqs
+  pr: {},   // product reqs
+  ss: {},   // sub-system reqs
+  auditLog: [],  // [{ts, action, target, detail}, ...]
+  schemaVersion: SCHEMA_VERSION,
+};
+
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    setSyncBadge('saved');
+  }catch(e){
+    console.error('Save failed:', e);
+    setSyncBadge('err');
+  }
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return false;
+    const s = JSON.parse(raw);
+    if(s.un) state.un = s.un;
+    if(s.sr) state.sr = s.sr;
+    if(s.pr) state.pr = s.pr;
+    if(s.ss) state.ss = s.ss;
+    if(Array.isArray(s.auditLog)) state.auditLog = s.auditLog;
+    state.schemaVersion = s.schemaVersion || 1;
+
+    // Migration: ensure every requirement has the new fields
+    const oldVersion = state.schemaVersion;
+    migrateRequirements();
+    // If migration changed the version, flush to localStorage so subsequent
+    // loads don't re-run migrations on the same data
+    if(oldVersion !== state.schemaVersion){
+      saveState();
+    }
+    return true;
+  }catch(e){
+    console.error('Load failed:', e);
+    return false;
+  }
+}
+
+// Categories matching the Contour Medical Requirements template (CM-000029-FM)
+const REQ_CATEGORIES = [
+  'Functional', 'Performance', 'Mechanical', 'Electrical',
+  'Environmental', 'Security', 'Interface', 'Manufacturability',
+  'Serviceability', 'Compatibility', 'Packaging', 'Labeling',
+  'Regulations', 'Locales',
+];
+
+// Heuristic auto-categorization. First match wins. Inputs the description text
+// (with [Notes: ...] tails stripped). Returns one of REQ_CATEGORIES.
+const CATEGORY_RULES = [
+  ['Locales', /^(?=.*\b(?:designed to (?:be )?operated? in|operated? in)\b).*\b(English|Spanish|French|German|United States|Europe|country|locale|language)\b/i],
+  ['Packaging', /\b(packag(?:e|ed|ing) (?:system|assembly|in (?:a|three|two)|with|to maintain)|sterile barrier (?:system|integrity)|outer packaging shall|individually packaged|packag(?:e|ing) shall|protective packaging|tray|carton|sterili[sz]ed using|sterili[sz]ation (process|method|method,|method\.|cycle|using)|EO sterili[sz]ation|gamma sterili[sz]ation)/i],
+  ['Labeling', /\b(label(?:ed|led|ing|s)? (?:with|the|on|in|by|using)|labeling shall|outer packaging shall be labeled|packaging shall be labeled|displayed on the (?:label|packaging)|UDI\b|symbol per|symbology|use[- ]by date|expir(?:y|ation) date shall|warning symbol|caution symbol|IFU shall|instructions for use shall)/i],
+  ['Regulations', /\b(meet (?:applicable )?(?:the )?requirements of|comply with (?:applicable )?|conform to|in accordance with)\s+(?:ISO|IEC|ASTM|FDA|21 CFR|EN\s|MDR|BS\s)|\bregulator(?:y|ily)\s+(?:approved|compliance|requirements|approval)|\bcertif(?:ied|ication)\b/i],
+  ['Performance', /\b(within|less than|greater than|at least|no more than|<=|>=|<\s?\d|>\s?\d|≤|≥)\s?\d|\b(accuracy|precision|response time|latency|throughput|frame rate|sample rate|update rate|temporal resolution|spatial resolution)\b|\b(operating|operational|continuous) (?:time|life|use)\b|\b\d+\s*(ms|μs|microsecond|millisecond|sec|second|minute|hour|fps|Hz|kHz|MHz|GHz)\b/i],
+  ['Electrical', /\b(volta(?:ge|ges)|current(?:s)?|impedance|resistance|capacitance|inductance|electrode (?:channel|signal|cross-?talk)|signal-to-noise|EMC|electromagnetic|leakage current|battery|power (?:consumption|supply|input|source|line)|isolation|differential|common-?mode|grounding|continuity|conductive (?:path|connection|surface))\b/i],
+  ['Environmental', /\b(temperature|humidity|altitude|barometric|atmospheric pressure|operating environment|storage condition|shipping condition|transport condition|environmental|cleaning|disinfection|chemical resistance|drop test|ingress (?:protection)?|IP\s?\d{2}|vibration|mechanical shock(?: per|ing)?)\b/i],
+  ['Mechanical', /\b(diameter|outer diameter|inner diameter|OD\b|ID\b|length|width|height|weight|cross-?section|geometry|profile|tip\b|atraumatic|stiffness|flex|bend(?:ing)?|kink|fatigue|tensile|compress|deflect|torque|column strength|bond strength|pull(?: strength| force| out)?|joint|seam|surface finish|smooth|rough|edge|recapturab|deploy|collapse|expand(?:ed|ing)?|shaft|handle|spline|basket|catheter (?:body|shaft|tip)|distal|proximal|lumen|wall thickness|durometer|material(?:s)?\s+shall|hypotube|wire|braided|coil(?:ed)?)\b/i],
+  ['Compatibility', /\b(compatib(?:le|ility) (?:with|to)|interoperab|fit (?:within|into)|connect(?:s|ion)? to|works? with|interfac(?:es?|ing) (?:with|to)|use (?:with|alongside)|paired with|integrate(?:s|d)? with)\b/i],
+  ['Interface', /\b(connector|connection|port|pin\b|pinout|cable\b|input(?:s)?\s+(?:from|to|shall)|output(?:s)?\s+(?:to|from|shall)|user (?:input|interface|control)|display\b|GUI\b|button|knob|switch|trigger|valve port|fluid path)\b/i],
+  ['Manufacturability', /\b(manufactur(?:e|ed|ing|ability)|production(?: process)?|assembl(?:e|ed|y|ies)|fabricat|test(?:able|ability)|inspect|in-process)\b/i],
+  ['Serviceability', /\b(service(?:able|ability)?|maintain(?:able|ability)?|maintenance|repair(?:able)?|self-?test|diagnost(?:ic|ics)|troubleshoot|installation|setup)\b/i],
+  ['Security', /\b(authentication|authorization|cybersecurity|encrypt(?:ion|ed)?|access control|data security|data integrity|privacy|HIPAA)\b/i],
+];
+
+function autoCategorize(desc){
+  if(!desc) return 'Functional';
+  // Strip [Notes: ...] / [Owner: ...] / [Verification: ...] tail blocks
+  let body = desc.replace(/\s*\[(?:Notes?|Owner|Verification)[^\]]*\]\s*$/i, '').trim();
+  // Use first 250 chars
+  const text = body.slice(0, 250);
+  for(const [cat, pattern] of CATEGORY_RULES){
+    if(pattern.test(text)) return cat;
+  }
+  return 'Functional';
+}
+
+// Returns the de-duplicated set of owner names currently used across all
+// requirement types, sorted case-insensitively. Used to populate the
+// Owner field's autocomplete datalist.
+function knownOwners(){
+  const set = new Set();
+  for(const t of ['un','sr','pr','ss']){
+    for(const id of Object.keys(state[t])){
+      const o = (state[t][id].owner || '').trim();
+      if(o) set.add(o);
+    }
+  }
+  return [...set].sort((a,b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+}
+
+function refreshOwnerDatalist(){
+  const dl = document.getElementById('ef-owner-options');
+  if(!dl) return;
+  const owners = knownOwners();
+  dl.innerHTML = owners.map(o => `<option value="${escapeHtml(o)}"></option>`).join('');
+}
+
+function migrateRequirements(){
+  const now = new Date().toISOString();
+  for(const t of ['un','sr','pr','ss']){
+    for(const id of Object.keys(state[t])){
+      const r = state[t][id];
+      if(r.status === undefined) r.status = 'draft';
+      if(r.workNeeded === undefined) r.workNeeded = false;
+      if(!Array.isArray(r.comments)) r.comments = [];
+      if(!r.createdAt) r.createdAt = now;
+      if(!r.updatedAt) r.updatedAt = r.createdAt;
+      if(r.notes === undefined) r.notes = '';
+
+      // v2 → v3 migration: collapse the SS verification sub-field into notes,
+      // and lift any [Verification: ...] / [Notes: ...] / [Owner: ... | Notes: ...]
+      // blocks that were appended to descriptions back into the notes field.
+      if(state.schemaVersion < 3){
+        const collected = [];
+
+        // Pull any [Verification: …] tail
+        if(r.desc){
+          const verifyMatch = r.desc.match(/\[Verification(?:\s+Method)?:\s*([^\]]+)\]\s*$/);
+          if(verifyMatch){
+            collected.push('Verification: ' + verifyMatch[1].trim());
+            r.desc = r.desc.replace(/\s*\[Verification(?:\s+Method)?:[^\]]+\]\s*$/, '').trim();
+          }
+        }
+        // Pull any [Notes: …] tail (single-clause)
+        if(r.desc){
+          const notesMatch = r.desc.match(/\[Notes:\s*([^\]]+)\]\s*$/);
+          if(notesMatch){
+            collected.push(notesMatch[1].trim());
+            r.desc = r.desc.replace(/\s*\[Notes:[^\]]+\]\s*$/, '').trim();
+          }
+        }
+        // Pull any [Owner: ... | Notes: ...] / [Notes: ... | Owner: ...] combined tail
+        if(r.desc){
+          const combinedMatch = r.desc.match(/\[([^\]]*(?:Owner|Notes)[^\]]*)\]\s*$/);
+          if(combinedMatch){
+            // Only consume if the inner has Owner: or Notes: prefix
+            const inner = combinedMatch[1];
+            if(/(?:^|\|)\s*(?:Owner|Notes):/i.test(inner)){
+              collected.push(inner.trim());
+              r.desc = r.desc.replace(/\s*\[[^\]]*(?:Owner|Notes)[^\]]*\]\s*$/, '').trim();
+            }
+          }
+        }
+        // Roll the legacy verification sub-field in too
+        if(t === 'ss' && r.verification){
+          // If we already collected an explicit "Verification: ..." block, the field is duplicate
+          const alreadyCaptured = collected.some(s => s.toLowerCase().startsWith('verification:'));
+          if(!alreadyCaptured){
+            collected.push('Verification: ' + r.verification);
+          }
+        }
+        delete r.verification;
+
+        if(collected.length){
+          r.notes = (r.notes ? r.notes + '\n' : '') + collected.join('\n');
+        }
+      }
+
+      // v3 → v4 migration: add category field (only meaningful for SR and PR)
+      if(state.schemaVersion < 4){
+        if((t === 'sr' || t === 'pr') && !r.category){
+          r.category = autoCategorize(r.desc || '');
+        }
+      }
+
+      // v4 → v5 migration: add owner field. Try to extract a previously
+      // embedded "Owner: Name" line from the notes field.
+      if(state.schemaVersion < 5){
+        if(r.owner === undefined){
+          let owner = '';
+          if(r.notes){
+            // Match "Owner: Name" possibly followed by | or end-of-line
+            const m = r.notes.match(/(?:^|\n|\|)\s*Owner:\s*([^|\n]+)/i);
+            if(m){
+              owner = m[1].trim();
+              // Remove the "Owner: ..." segment from notes
+              r.notes = r.notes.replace(/(?:^|\n|\|)\s*Owner:\s*[^|\n]+\s*\|?\s*/i, ' ').replace(/\s*\|\s*$/,'').trim();
+            }
+          }
+          r.owner = owner;
+        }
+      }
+    }
+  }
+  state.schemaVersion = SCHEMA_VERSION;
+}
+
+/* ========================================================================
+   AUDIT LOG
+   ======================================================================== */
+
+const AUDIT_MAX = 500;
+
+function audit(action, target, detail){
+  state.auditLog.push({
+    ts: new Date().toISOString(),
+    action,
+    target: target || '',
+    detail: detail || '',
+  });
+  // Cap
+  if(state.auditLog.length > AUDIT_MAX){
+    state.auditLog.splice(0, state.auditLog.length - AUDIT_MAX);
+  }
+}
+
+function setSyncBadge(status){
+  const b = document.getElementById('sync-badge');
+  b.className = status;
+  b.textContent = status==='saving' ? 'Saving...' : status==='err' ? 'Save error' : 'Local';
+  if(status==='saved'){
+    const t = new Date();
+    document.getElementById('status-time').textContent = 'Saved ' + t.toLocaleTimeString();
+  }
+}
+
+/* ------------------------------------------------------------------------
+   ID helpers + link helpers
+   ------------------------------------------------------------------------ */
+
+function getReq(type, id){ return state[type][id]; }
+
+function getDescOf(type, id){
+  const r = state[type][id];
+  return r ? r.desc : '';
+}
+
+function nextId(type){
+  // Find the highest NNN within this type and return next
+  // Format: UN-001, SR-001, PR-001, SS-001
+  const prefix = {un:'UN-', sr:'SR-', pr:'PR-', ss:'V-'}[type] || 'REQ-';
+  let max = 0;
+  for(const id of Object.keys(state[type] || {})){
+    const m = id.match(/(\d+)$/);
+    if(m){ max = Math.max(max, parseInt(m[1],10)); }
+  }
+  return prefix + String(max+1).padStart(3,'0');
+}
+
+function addParent(childType, childId, parentType, parentId){
+  const c = state[childType][childId];
+  if(!c) return;
+  if(!c.parents) c.parents = [];
+  if(!c.parents.includes(parentId)) c.parents.push(parentId);
+}
+
+function removeParent(childType, childId, parentId){
+  const c = state[childType][childId];
+  if(!c || !c.parents) return;
+  c.parents = c.parents.filter(p => p !== parentId);
+}
+
+function getChildrenOf(parentType, parentId){
+  // Returns array of {type, id} objects for direct children of given parent
+  const childMap = { un:'sr', sr:'pr', pr:'ss' };
+  const childType = childMap[parentType];
+  if(!childType) return [];
+  const out = [];
+  for(const [id, r] of Object.entries(state[childType])){
+    if(r.parents && r.parents.includes(parentId)) out.push({type:childType, id});
+  }
+  // sort by ID
+  out.sort((a,b)=>a.id.localeCompare(b.id));
+  return out;
+}
+
+function getParentsOf(type, id){
+  const parentMap = { sr:'un', pr:'sr', ss:'pr' };
+  const parentType = parentMap[type];
+  if(!parentType) return [];
+  const r = state[type][id];
+  if(!r || !r.parents) return [];
+  return r.parents.filter(p => state[parentType][p]).map(p => ({type:parentType, id:p}));
+}
+
+function deleteReq(type, id){
+  delete state[type][id];
+  // Cascade: remove this id from any child.parents lists
+  const childMap = { un:'sr', sr:'pr', pr:'ss' };
+  const childType = childMap[type];
+  if(childType){
+    for(const r of Object.values(state[childType])){
+      if(r.parents) r.parents = r.parents.filter(p => p !== id);
+    }
+  }
+}
+
+function renameReq(type, oldId, newId){
+  if(oldId === newId) return true;
+  // Check uniqueness across ALL types
+  for(const t of ['un','sr','pr','ss']){
+    if(state[t][newId]) return false;
+  }
+  const r = state[type][oldId];
+  delete state[type][oldId];
+  r.id = newId;
+  state[type][newId] = r;
+  // Update any child.parents references
+  const childMap = { un:'sr', sr:'pr', pr:'ss' };
+  const childType = childMap[type];
+  if(childType){
+    for(const c of Object.values(state[childType])){
+      if(c.parents){
+        c.parents = c.parents.map(p => p === oldId ? newId : p);
+      }
+    }
+  }
+  return true;
+}
+
+/* ========================================================================
+   RENDERING — MATRIX VIEW
+   ------------------------------------------------------------------------
+   Builds rows in the same shape as the Excel template: User Need cells
+   span vertically across all rows for that need, System Req cells span
+   across rows for that sys-req, etc. This is the "outdent" pattern from
+   the source template.
+
+   Algorithm:
+     For each user need (or orphan group):
+       For each system req under it (or "no sys req"):
+         For each product req under it:
+           For each sub-system req under it (or one row if none):
+             emit a row.
+     Then merge cells vertically by counting consecutive rows with same id.
+   ======================================================================== */
+
+let selected = null;   // {type, id} or null
+let activeView = 'matrix';
+let filterFlags = { un:true, sr:true, pr:true, ss:true, do:true, orphans:false, work:false };
+
+// Bulk select mode state. When bulkMode is true, the matrix shows checkboxes
+// on each row and clicking pills no longer opens the side panel — clicks
+// toggle the row's checkbox instead. bulkSelected stores 'type:id' keys.
+let bulkMode = false;
+let bulkSelected = new Set();
+let searchTerm = '';
+let focusSet = null;   // Set of "type:id" strings, or null = no focus
+let focusAnchor = null; // {type, id, label} of the requirement focus is anchored on
+
+/* ========================================================================
+   FOCUS MODE
+   ------------------------------------------------------------------------
+   When focus is active, only the focused requirement, its full chain of
+   ancestors, and its full chain of descendants are visible. Everything
+   else is hidden across all three views and the matrix relayouts to fill
+   the space.
+   ======================================================================== */
+
+function focusOn(type, id){
+  const req = state[type] && state[type][id];
+  if(!req){ toast('Requirement not found'); return; }
+
+  const ids = new Set();
+  ids.add(type + ':' + id);
+
+  // Walk descendants
+  const walkDown = (t, i) => {
+    const kids = getChildrenOf(t, i);
+    for(const k of kids){
+      const key = k.type + ':' + k.id;
+      if(ids.has(key)) continue;
+      ids.add(key);
+      walkDown(k.type, k.id);
+    }
+  };
+  walkDown(type, id);
+
+  // Walk ancestors
+  const walkUp = (t, i) => {
+    const parents = getParentsOf(t, i);
+    for(const p of parents){
+      const key = p.type + ':' + p.id;
+      if(ids.has(key)) continue;
+      ids.add(key);
+      walkUp(p.type, p.id);
+    }
+  };
+  walkUp(type, id);
+
+  focusSet = ids;
+  focusAnchor = {type, id, label: id};
+
+  // Update banner and toolbar button
+  const banner = document.getElementById('focus-banner');
+  const desc = (req.desc || '').replace(/\n/g,' ').slice(0, 60);
+  document.getElementById('focus-label').textContent = `Focused: ${id}${desc ? ' — ' + desc + (req.desc.length > 60 ? '…' : '') : ''} (${ids.size} reqs)`;
+  banner.style.display = 'flex';
+  document.getElementById('focus-btn').classList.add('focus-on');
+  document.getElementById('focus-btn').textContent = 'Focused';
+
+  renderAll();
+  if(activeView === 'graph'){
+    // Re-fit so the focused subset fills the view
+    setTimeout(() => fitGraph(), 50);
+  }
+  toast(`Focus: ${ids.size} requirement${ids.size===1?'':'s'} in chain`);
+}
+
+function focusSelected(){
+  if(!selected){ toast('Select a requirement first'); return; }
+  focusOn(selected.type, selected.id);
+}
+
+function clearFocus(){
+  focusSet = null;
+  focusAnchor = null;
+  document.getElementById('focus-banner').style.display = 'none';
+  document.getElementById('focus-btn').classList.remove('focus-on');
+  document.getElementById('focus-btn').textContent = 'Focus';
+  renderAll();
+  if(activeView === 'graph'){ setTimeout(() => fitGraph(), 50); }
+}
+
+// Make available globally for the banner's inline onclick
+window.clearFocus = clearFocus;
+
+function inFocus(type, id){
+  if(!focusSet) return true;
+  return focusSet.has(type + ':' + id);
+}
+
+function buildRows(){
+  // Returns array of {un, sr, pr, ss, parts}
+  // Each may be null where not applicable / orphan
+  const rows = [];
+
+  // Pass 1: traversal starting from User Needs
+  const unIds = Object.keys(state.un).sort();
+  const seenSR = new Set();
+  const seenPR = new Set();
+  const seenSS = new Set();
+
+  for(const unId of unIds){
+    const srKids = getChildrenOf('un', unId);
+    if(srKids.length === 0){
+      rows.push({un:unId, sr:null, pr:null, ss:null});
+      continue;
+    }
+    for(const {id:srId} of srKids){
+      seenSR.add(srId);
+      const prKids = getChildrenOf('sr', srId);
+      if(prKids.length === 0){
+        rows.push({un:unId, sr:srId, pr:null, ss:null});
+        continue;
+      }
+      for(const {id:prId} of prKids){
+        seenPR.add(prId);
+        const ssKids = getChildrenOf('pr', prId);
+        if(ssKids.length === 0){
+          rows.push({un:unId, sr:srId, pr:prId, ss:null});
+          continue;
+        }
+        for(const {id:ssId} of ssKids){
+          seenSS.add(ssId);
+          rows.push({un:unId, sr:srId, pr:prId, ss:ssId});
+        }
+      }
+    }
+  }
+
+  // Pass 2: orphan rows. System reqs not under any user need
+  for(const srId of Object.keys(state.sr).sort()){
+    if(seenSR.has(srId)) continue;
+    const prKids = getChildrenOf('sr', srId);
+    if(prKids.length === 0){
+      rows.push({un:null, sr:srId, pr:null, ss:null});
+      continue;
+    }
+    for(const {id:prId} of prKids){
+      seenPR.add(prId);
+      const ssKids = getChildrenOf('pr', prId);
+      if(ssKids.length === 0){
+        rows.push({un:null, sr:srId, pr:prId, ss:null});
+        continue;
+      }
+      for(const {id:ssId} of ssKids){
+        seenSS.add(ssId);
+        rows.push({un:null, sr:srId, pr:prId, ss:ssId});
+      }
+    }
+  }
+  // Product reqs without a system req parent
+  for(const prId of Object.keys(state.pr).sort()){
+    if(seenPR.has(prId)) continue;
+    const ssKids = getChildrenOf('pr', prId);
+    if(ssKids.length === 0){
+      rows.push({un:null, sr:null, pr:prId, ss:null});
+      continue;
+    }
+    for(const {id:ssId} of ssKids){
+      seenSS.add(ssId);
+      rows.push({un:null, sr:null, pr:prId, ss:ssId});
+    }
+  }
+  // Sub-system reqs without a product req parent
+  for(const ssId of Object.keys(state.ss).sort()){
+    if(seenSS.has(ssId)) continue;
+    rows.push({un:null, sr:null, pr:null, ss:ssId});
+  }
+
+  return rows;
+}
+
+function passesFilters(row){
+  // If "orphans only" is on, hide rows where every level is connected
+  if(filterFlags.orphans){
+    const isOrphan = !row.un || !row.sr || !row.pr;
+    if(!isOrphan) return false;
+  }
+  // If "work needed only" is on, require at least one populated level on this
+  // row to have its workNeeded flag set
+  if(filterFlags.work){
+    const anyWork = (row.un && state.un[row.un] && state.un[row.un].workNeeded)
+      || (row.sr && state.sr[row.sr] && state.sr[row.sr].workNeeded)
+      || (row.pr && state.pr[row.pr] && state.pr[row.pr].workNeeded)
+      || (row.ss && state.ss[row.ss] && state.ss[row.ss].workNeeded);
+    if(!anyWork) return false;
+  }
+  // Focus mode: every populated level on this row must be in the focus set.
+  // A row that has both an in-focus UN and an out-of-focus SR is hidden,
+  // because we don't want unrelated siblings appearing under the focused chain.
+  if(focusSet){
+    if(row.un && !inFocus('un', row.un)) return false;
+    if(row.sr && !inFocus('sr', row.sr)) return false;
+    if(row.pr && !inFocus('pr', row.pr)) return false;
+    if(row.ss && !inFocus('ss', row.ss)) return false;
+    // Also require at least one level on this row is populated and in focus
+    const anyInFocus = (row.un && inFocus('un', row.un))
+      || (row.sr && inFocus('sr', row.sr))
+      || (row.pr && inFocus('pr', row.pr))
+      || (row.ss && inFocus('ss', row.ss));
+    if(!anyInFocus) return false;
+  }
+  return true;
+}
+
+function highlightSearch(text, term){
+  if(!term) return escapeHtml(text);
+  const lc = text.toLowerCase();
+  const tlc = term.toLowerCase();
+  const idx = lc.indexOf(tlc);
+  if(idx === -1) return escapeHtml(text);
+  return escapeHtml(text.slice(0,idx)) + '<mark>' + escapeHtml(text.slice(idx, idx+term.length)) + '</mark>' + escapeHtml(text.slice(idx+term.length));
+}
+
+function escapeHtml(s){
+  if(s==null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function rowMatchesSearch(row){
+  if(!searchTerm) return true;
+  const t = searchTerm.toLowerCase();
+  for(const [field, type] of [['un','un'],['sr','sr'],['pr','pr'],['ss','ss']]){
+    const id = row[field];
+    if(!id) continue;
+    if(id.toLowerCase().includes(t)) return true;
+    const desc = getDescOf(type, id);
+    if(desc && desc.toLowerCase().includes(t)) return true;
+    if(type==='ss'){
+      const ss = state.ss[id];
+      if(ss && ss.do && ss.do.toLowerCase().includes(t)) return true;
+    }
+  }
+  return false;
+}
+
+function renderMatrix(){
+  const tbody = document.getElementById('matrix-body');
+  const thead = document.querySelector('#matrix-table thead');
+
+  // Active levels in order (un -> sr -> pr -> ss). 'do' is a column on the ss row.
+  const allLevels = ['un','sr','pr','ss'];
+  const activeLevels = allLevels.filter(l => filterFlags[l]);
+  const showDo = filterFlags.do;
+
+  // Rebuild table headers to reflect visible columns
+  const labels = {un:'User Need', sr:'System Requirement', pr:'Product Requirement', ss:'Verification'};
+  let thead1 = '<tr>';
+  let thead2 = '<tr>';
+  for(const lv of activeLevels){
+    thead1 += `<th class="col-${lv}" colspan="2">${labels[lv]}</th>`;
+    thead2 += `<th class="col-${lv}">ID</th><th class="col-${lv}">Description</th>`;
+  }
+  if(showDo){
+    thead1 += `<th class="col-do" rowspan="2">Design Output / Part #</th>`;
+  }
+  thead1 += '</tr>';
+  thead2 += '</tr>';
+  thead.innerHTML = thead1 + thead2;
+  const totalCols = activeLevels.length * 2 + (showDo ? 1 : 0);
+
+  // Build rows considering ONLY the visible levels — collapse duplicates that
+  // arise from hidden levels (e.g. if SS hidden, multiple SS-only-different rows
+  // become one row with the same UN/SR/PR).
+  const allRows = buildRows().filter(r => passesFilters(r) && rowMatchesSearch(r));
+
+  // Project each row down to (un, sr, pr, ss) tuple of visible levels only.
+  // For DO column we still need ss to compute the value.
+  const seen = new Set();
+  const rows = [];
+  for(const r of allRows){
+    const key = activeLevels.map(l => r[l] || '').join('|') + '|' + (showDo && r.ss ? (state.ss[r.ss]?.do || '') : '');
+    if(seen.has(key)) continue;
+    seen.add(key);
+    rows.push({...r});
+  }
+
+  if(rows.length === 0 || activeLevels.length === 0){
+    const msg = activeLevels.length === 0
+      ? 'All requirement levels are hidden. Turn on at least one level filter to see data.'
+      : 'No requirements match the current filters.';
+    const colspan = Math.max(totalCols, 1);
+    tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:36px;text-align:center;color:var(--text3);font-size:13px;">
+      <div style="font-size:14px;color:var(--text2);margin-bottom:6px;">${msg}</div>
+      ${(Object.keys(state.un).length+Object.keys(state.sr).length+Object.keys(state.pr).length+Object.keys(state.ss).length)===0 ? 'Use the <b>+</b> buttons above to create your first requirement.' : ''}
+    </td></tr>`;
+    return;
+  }
+
+  // Compute rowspan grouping using ONLY active levels.
+  // For each visible level i in activeLevels, merge consecutive rows where all
+  // levels at index <= i match (preserves parent grouping).
+  const N = rows.length;
+  const spans = rows.map(()=>{
+    const s = {};
+    for(const l of activeLevels){ s[l] = 1; s['skip_'+l] = false; }
+    return s;
+  });
+
+  for(let i=0;i<N;i++){
+    for(let li=0; li<activeLevels.length; li++){
+      const lv = activeLevels[li];
+      if(spans[i]['skip_'+lv]) continue;
+      const myVal = rows[i][lv];
+      if(!myVal) continue;
+      let j = i + 1;
+      while(j < N){
+        // All levels up through and including lv must match
+        let allMatch = true;
+        for(let kk = 0; kk <= li; kk++){
+          if(rows[j][activeLevels[kk]] !== rows[i][activeLevels[kk]]){ allMatch = false; break; }
+        }
+        if(!allMatch) break;
+        spans[j]['skip_'+lv] = true;
+        spans[i][lv]++;
+        j++;
+      }
+    }
+  }
+
+  let html = '';
+  for(let i=0;i<N;i++){
+    const r = rows[i];
+    const sp = spans[i];
+    const selClass = (selected && activeLevels.includes(selected.type) && r[selected.type]===selected.id) ? ' selected-grp' : '';
+    html += `<tr class="row-hover-grp${selClass}">`;
+
+    for(const lv of activeLevels){
+      if(sp['skip_'+lv]) continue;
+      html += renderIdCell(lv, r[lv], sp[lv], !!r[lv]);
+      html += renderDescCell(lv, r[lv], sp[lv]);
+    }
+
+    if(showDo){
+      // Design output rendering. Only show the DO cell once per ss-group (or once
+      // per row if ss is hidden). Use the same rowspan logic on ss when ss visible.
+      let doVal = '';
+      if(r.ss && state.ss[r.ss]) doVal = state.ss[r.ss].do || '';
+      // If ss is visible, span the DO cell to match the ss span
+      if(activeLevels.includes('ss')){
+        if(!sp['skip_ss']){
+          html += `<td class="id-cell" rowspan="${sp.ss}">${doVal ? `<span class="id-pill do">${escapeHtml(doVal)}</span>` : `<span class="id-pill empty">—</span>`}</td>`;
+        }
+      }else{
+        html += `<td class="id-cell">${doVal ? `<span class="id-pill do">${escapeHtml(doVal)}</span>` : `<span class="id-pill empty">—</span>`}</td>`;
+      }
+    }
+
+    html += `</tr>`;
+  }
+  tbody.innerHTML = html;
+
+  // Bind clicks
+  tbody.querySelectorAll('.id-pill[data-type]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const type = el.dataset.type;
+      const id = el.dataset.id;
+      if(!id) return;
+      if(bulkMode){
+        toggleBulkSelected(type, id);
+      }else{
+        selectReq(type, id);
+      }
+    });
+  });
+  // Bind checkbox toggles in bulk mode
+  if(bulkMode){
+    tbody.querySelectorAll('.bulk-checkbox').forEach(cb => {
+      cb.addEventListener('click', e => {
+        e.stopPropagation();
+        toggleBulkSelected(cb.dataset.type, cb.dataset.id);
+      });
+    });
+  }
+}
+
+function renderIdCell(type, id, rowspan, exists){
+  if(!exists){
+    return `<td class="id-cell" rowspan="${rowspan}"><span class="id-pill empty">—</span></td>`;
+  }
+  const r = state[type][id];
+  const status = (r && r.status) || 'draft';
+  const work = r && r.workNeeded;
+  const checkboxHtml = bulkMode
+    ? `<input type="checkbox" class="bulk-checkbox" data-type="${type}" data-id="${escapeHtml(id)}" ${bulkSelected.has(type+':'+id)?'checked':''}>`
+    : '';
+  return `<td class="id-cell ${bulkMode && bulkSelected.has(type+':'+id) ? 'bulk-checked' : ''}" rowspan="${rowspan}">
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:3px;">
+      ${checkboxHtml}
+      <span class="status-dot ${status}" title="${status}"></span>
+      <span class="id-pill ${type}" data-type="${type}" data-id="${escapeHtml(id)}">${highlightSearch(id, searchTerm)}</span>
+      ${work ? '<span class="work-tick" title="Work needed: content gaps"></span>' : ''}
+    </div>
+  </td>`;
+}
+
+function renderDescCell(type, id, rowspan){
+  if(!id){
+    return `<td rowspan="${rowspan}"><span class="desc empty">—</span></td>`;
+  }
+  const r = state[type][id];
+  const desc = r ? r.desc || '' : '';
+  if(!desc){
+    return `<td rowspan="${rowspan}"><span class="desc empty">(no description)</span></td>`;
+  }
+  return `<td rowspan="${rowspan}"><span class="desc">${highlightSearch(desc, searchTerm)}</span></td>`;
+}
+
+/* ========================================================================
+   RENDERING — TREE VIEW
+   ======================================================================== */
+
+const collapsed = new Set();
+
+function toggleCollapse(key){
+  if(collapsed.has(key)) collapsed.delete(key); else collapsed.add(key);
+  renderTree();
+}
+
+function statusBadge(r){
+  if(!r) return '';
+  const status = r.status || 'draft';
+  const work = r.workNeeded;
+  return `<span class="status-pill ${status}" title="Status: ${status}">${status}</span>` +
+         (work ? `<span class="work-flag" title="Work needed: content gaps">work</span>` : '');
+}
+
+// Returns true if this node, OR any of its descendants, has the workNeeded
+// flag set. Used by the "work needed only" filter in hierarchy view to keep
+// the parent branch visible when only a leaf has work flagged.
+function branchHasWork(type, id){
+  const r = state[type] && state[type][id];
+  if(r && r.workNeeded) return true;
+  const kids = getChildrenOf(type, id);
+  for(const k of kids){
+    if(branchHasWork(k.type, k.id)) return true;
+  }
+  return false;
+}
+
+// Returns true if any ancestor up the chain has workNeeded flagged.
+function hasWorkAncestor(type, id){
+  const parents = getParentsOf(type, id);
+  for(const p of parents){
+    const pr = state[p.type][p.id];
+    if(pr && pr.workNeeded) return true;
+    if(hasWorkAncestor(p.type, p.id)) return true;
+  }
+  return false;
+}
+
+// Combined check: should this node be shown when "work needed only" is on?
+// Yes if it OR any descendant OR any ancestor has work flagged. This keeps
+// the entire chain visible, not just the leaf or just the root.
+function inWorkChain(type, id){
+  return branchHasWork(type, id) || hasWorkAncestor(type, id);
+}
+
+// Wrapper that combines focus + work filters for hierarchy iteration
+function hierarchyShows(type, id){
+  if(!inFocus(type, id)) return false;
+  if(filterFlags.work && !inWorkChain(type, id)) return false;
+  return true;
+}
+
+/* ========================================================================
+   BULK SELECT MODE
+   ------------------------------------------------------------------------
+   When bulkMode is on, the matrix replaces its single-select-and-edit
+   behavior with multi-select via checkboxes. Bulk actions then apply to
+   every selected requirement at once. Selection survives view switches
+   (matrix -> hierarchy -> matrix) but clears when bulk mode is exited.
+   ======================================================================== */
+
+function toggleBulkSelected(type, id){
+  const key = type + ':' + id;
+  if(bulkSelected.has(key)) bulkSelected.delete(key);
+  else bulkSelected.add(key);
+  updateBulkCount();
+  // Targeted re-render of the row's checkmark/highlight without rebuilding
+  // the whole matrix (which would be flickery on large datasets)
+  document.querySelectorAll(`.bulk-checkbox[data-type="${type}"][data-id="${CSS.escape(id)}"]`).forEach(cb => {
+    cb.checked = bulkSelected.has(key);
+    const td = cb.closest('td');
+    if(td) td.classList.toggle('bulk-checked', bulkSelected.has(key));
+  });
+}
+
+function updateBulkCount(){
+  const n = bulkSelected.size;
+  const el = document.getElementById('bulk-count');
+  if(el) el.textContent = `${n} selected`;
+  // Disable action buttons when nothing is selected
+  ['bulk-status','bulk-category','bulk-owner','bulk-work','bulk-delete','bulk-clear'].forEach(bid => {
+    const btn = document.getElementById(bid);
+    if(btn) btn.disabled = (n === 0);
+  });
+}
+
+function enterBulkMode(){
+  bulkMode = true;
+  bulkSelected.clear();
+  document.getElementById('bulk-bar').style.display = 'flex';
+  document.getElementById('bulk-toggle').classList.add('primary');
+  document.getElementById('matrix-table').classList.add('bulk-mode');
+  // Force matrix view since bulk only works there
+  if(activeView !== 'matrix'){
+    setActiveView('matrix');
+  }
+  updateBulkCount();
+  renderAll();
+}
+
+function exitBulkMode(){
+  bulkMode = false;
+  bulkSelected.clear();
+  document.getElementById('bulk-bar').style.display = 'none';
+  document.getElementById('bulk-toggle').classList.remove('primary');
+  document.getElementById('matrix-table').classList.remove('bulk-mode');
+  renderAll();
+}
+
+// Returns the array of {type, id} for currently selected requirements,
+// filtered to only those that still exist in state.
+function bulkSelection(){
+  const out = [];
+  for(const key of bulkSelected){
+    const [type, id] = key.split(':');
+    if(state[type] && state[type][id]) out.push({type, id});
+  }
+  return out;
+}
+
+// Bulk action: status — prompts via modal-style picker, applies, audits, saves
+function bulkApplyStatus(){
+  const sel = bulkSelection();
+  if(sel.length === 0) return;
+  const newStatus = prompt(`Set status to one of: draft, in-review, approved, obsolete\n\nApplies to ${sel.length} requirement${sel.length===1?'':'s'}.`, 'in-review');
+  if(!newStatus) return;
+  const allowed = ['draft','in-review','approved','obsolete'];
+  if(!allowed.includes(newStatus)){
+    toast(`Status must be one of: ${allowed.join(', ')}`);
+    return;
+  }
+  let changed = 0;
+  for(const {type, id} of sel){
+    const r = state[type][id];
+    if(r.status !== newStatus){
+      audit('status', `${type}:${id}`, `${r.status} → ${newStatus} (bulk)`);
+      r.status = newStatus;
+      r.updatedAt = new Date().toISOString();
+      changed++;
+    }
+  }
+  audit('update', '', `Bulk status change to "${newStatus}" applied to ${changed} requirement${changed===1?'':'s'}`);
+  saveState();
+  renderAll();
+  toast(`Updated ${changed} requirement${changed===1?'':'s'} to ${newStatus}`);
+}
+
+function bulkApplyCategory(){
+  const sel = bulkSelection().filter(s => s.type === 'sr' || s.type === 'pr');
+  if(sel.length === 0){
+    toast('Category only applies to System Requirements and Product Requirements');
+    return;
+  }
+  const newCat = prompt(`Set category to one of:\n${REQ_CATEGORIES.join(', ')}\n\nApplies to ${sel.length} SR/PR${sel.length===1?'':'s'}.`, 'Functional');
+  if(!newCat) return;
+  if(!REQ_CATEGORIES.includes(newCat)){
+    toast(`Category must be one of: ${REQ_CATEGORIES.join(', ')}`);
+    return;
+  }
+  let changed = 0;
+  for(const {type, id} of sel){
+    const r = state[type][id];
+    if((r.category || '') !== newCat){
+      r.category = newCat;
+      r.updatedAt = new Date().toISOString();
+      changed++;
+    }
+  }
+  audit('update', '', `Bulk category change to "${newCat}" applied to ${changed} requirement${changed===1?'':'s'}`);
+  saveState();
+  renderAll();
+  toast(`Updated ${changed} SR/PR${changed===1?'':'s'} to ${newCat}`);
+}
+
+function bulkApplyOwner(){
+  const sel = bulkSelection();
+  if(sel.length === 0) return;
+  const owners = knownOwners();
+  const hint = owners.length ? `\n\nExisting owners: ${owners.join(', ')}` : '';
+  const newOwner = prompt(`Set owner for ${sel.length} requirement${sel.length===1?'':'s'}.${hint}\n\nLeave blank to clear owner.`, '');
+  if(newOwner === null) return; // cancel
+  const trimmed = newOwner.trim();
+  let changed = 0;
+  for(const {type, id} of sel){
+    const r = state[type][id];
+    if((r.owner || '') !== trimmed){
+      r.owner = trimmed;
+      r.updatedAt = new Date().toISOString();
+      changed++;
+    }
+  }
+  audit('update', '', `Bulk owner change to "${trimmed || '(none)'}" applied to ${changed} requirement${changed===1?'':'s'}`);
+  saveState();
+  renderAll();
+  toast(`Updated owner on ${changed} requirement${changed===1?'':'s'}`);
+}
+
+function bulkApplyWork(){
+  const sel = bulkSelection();
+  if(sel.length === 0) return;
+  const ans = prompt(`Set work-needed flag to (yes / no) for ${sel.length} requirement${sel.length===1?'':'s'}.`, 'yes');
+  if(!ans) return;
+  const newVal = /^y(es)?$|^true$/i.test(ans.trim());
+  let changed = 0;
+  for(const {type, id} of sel){
+    const r = state[type][id];
+    if(!!r.workNeeded !== newVal){
+      r.workNeeded = newVal;
+      r.updatedAt = new Date().toISOString();
+      changed++;
+    }
+  }
+  audit('update', '', `Bulk work-needed change to "${newVal?'yes':'no'}" applied to ${changed} requirement${changed===1?'':'s'}`);
+  saveState();
+  renderAll();
+  toast(`Set work-needed=${newVal?'yes':'no'} on ${changed}`);
+}
+
+function bulkDelete(){
+  const sel = bulkSelection();
+  if(sel.length === 0) return;
+  if(!confirm(`Delete ${sel.length} requirement${sel.length===1?'':'s'}? Trace links from these requirements will be removed. Cannot be undone.`)) return;
+  // Build a set of keys to delete, then remove from each parent reference
+  const toDelete = new Set(sel.map(s => s.type+':'+s.id));
+  let removed = 0;
+  for(const {type, id} of sel){
+    if(!state[type] || !state[type][id]) continue;
+    audit('delete', `${type}:${id}`, `Bulk deleted (was: ${(state[type][id].desc || '').slice(0,60)})`);
+    delete state[type][id];
+    removed++;
+  }
+  // Clean up parent references in remaining records
+  for(const t of ['sr','pr','ss']){
+    for(const id of Object.keys(state[t])){
+      const r = state[t][id];
+      if(Array.isArray(r.parents)){
+        r.parents = r.parents.filter(pid => {
+          // Determine type of parent and check if it was deleted
+          for(const pt of ['un','sr','pr']){
+            if(toDelete.has(pt+':'+pid)) return false;
+          }
+          return true;
+        });
+      }
+    }
+  }
+  audit('update', '', `Bulk delete removed ${removed} requirement${removed===1?'':'s'}`);
+  bulkSelected.clear();
+  // If the side-panel selection was deleted, clear it
+  if(selected && toDelete.has(selected.type+':'+selected.id)){
+    selected = null;
+  }
+  saveState();
+  updateBulkCount();
+  renderAll();
+  renderEditPanel();
+  toast(`Deleted ${removed} requirement${removed===1?'':'s'}`);
+}
+
+// Select every requirement currently visible in the matrix view
+function bulkSelectAllVisible(){
+  // Reuse the matrix's filter logic to find what's visible
+  const allRows = buildRows().filter(r => passesFilters(r) && rowMatchesSearch(r));
+  const allLevels = ['un','sr','pr','ss'];
+  const activeLevels = allLevels.filter(l => filterFlags[l]);
+  let added = 0;
+  for(const row of allRows){
+    for(const lv of activeLevels){
+      if(row[lv] && state[lv] && state[lv][row[lv]]){
+        const key = lv+':'+row[lv];
+        if(!bulkSelected.has(key)){
+          bulkSelected.add(key);
+          added++;
+        }
+      }
+    }
+  }
+  updateBulkCount();
+  renderAll();
+  toast(`Added ${added} requirement${added===1?'':'s'} to selection`);
+}
+
+
+function renderTree(){
+  const wrap = document.getElementById('tree-wrap');
+  const unIds = Object.keys(state.un).sort();
+
+  if(unIds.length === 0 && Object.keys(state.sr).length === 0 && Object.keys(state.pr).length === 0 && Object.keys(state.ss).length === 0){
+    wrap.innerHTML = `<div class="empty-state" style="padding:60px 20px;">
+      <div class="big">No requirements yet</div>
+      Use the <b>+</b> buttons above to create your first requirement.
+    </div>`;
+    return;
+  }
+
+  let html = '';
+  for(const unId of unIds){
+    if(!hierarchyShows('un', unId)) continue;
+    const un = state.un[unId];
+    const key = 'un:'+unId;
+    const isCol = collapsed.has(key);
+    html += `<div class="tree-un${isCol?' collapsed':''}">`;
+    html += `<div class="tree-un-hdr" data-toggle="${key}">
+      <span class="tree-caret">${isCol?'▶':'▼'}</span>
+      <span class="tree-id un">${escapeHtml(unId)}</span>
+      <span class="tree-text${un.desc?'':' empty'}">${highlightSearch(un.desc||'(no description)', searchTerm)}</span>
+      ${statusBadge(un)}
+      <span class="tree-actions"><button class="btn tiny" data-edit="un:${escapeHtml(unId)}">Edit</button></span>
+    </div>`;
+    if(!isCol){
+      html += `<div class="tree-un-body">`;
+      const srKids = getChildrenOf('un', unId).filter(k => hierarchyShows('sr', k.id));
+      if(srKids.length === 0){
+        html += `<div class="tree-empty-msg">No system requirements linked.</div>`;
+      }
+      for(const {id:srId} of srKids){
+        html += renderTreeSr(srId);
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Orphan System Reqs
+  const orphanSr = Object.keys(state.sr).filter(id => {
+    if(!hierarchyShows('sr', id)) return false;
+    const r = state.sr[id];
+    return !r.parents || r.parents.length === 0 || !r.parents.some(p => state.un[p]);
+  }).sort();
+  if(orphanSr.length){
+    html += `<div class="tree-un" style="border-color:var(--warnbd);">`;
+    html += `<div class="tree-un-hdr" style="background:var(--warnbg);"><span class="tree-id" style="background:#fff;color:var(--warn);border:1px solid var(--warnbd);">ORPHANS</span><span class="tree-text">System Requirements without a parent User Need</span></div>`;
+    html += `<div class="tree-un-body">`;
+    for(const srId of orphanSr) html += renderTreeSr(srId);
+    html += `</div></div>`;
+  }
+
+  // Orphan Product Reqs
+  const orphanPr = Object.keys(state.pr).filter(id => {
+    if(!hierarchyShows('pr', id)) return false;
+    const r = state.pr[id];
+    return !r.parents || r.parents.length === 0 || !r.parents.some(p => state.sr[p]);
+  }).sort();
+  if(orphanPr.length){
+    html += `<div class="tree-un" style="border-color:var(--warnbd);">`;
+    html += `<div class="tree-un-hdr" style="background:var(--warnbg);"><span class="tree-id" style="background:#fff;color:var(--warn);border:1px solid var(--warnbd);">ORPHANS</span><span class="tree-text">Product Requirements without a parent System Req</span></div>`;
+    html += `<div class="tree-un-body">`;
+    for(const prId of orphanPr) html += renderTreePr(prId);
+    html += `</div></div>`;
+  }
+
+  // Orphan Sub-system Reqs
+  const orphanSs = Object.keys(state.ss).filter(id => {
+    if(!hierarchyShows('ss', id)) return false;
+    const r = state.ss[id];
+    return !r.parents || r.parents.length === 0 || !r.parents.some(p => state.pr[p]);
+  }).sort();
+  if(orphanSs.length){
+    html += `<div class="tree-un" style="border-color:var(--warnbd);">`;
+    html += `<div class="tree-un-hdr" style="background:var(--warnbg);"><span class="tree-id" style="background:#fff;color:var(--warn);border:1px solid var(--warnbd);">ORPHANS</span><span class="tree-text">Verifications without a parent Product Req</span></div>`;
+    html += `<div class="tree-un-body">`;
+    for(const ssId of orphanSs) html += renderTreeSs(ssId);
+    html += `</div></div>`;
+  }
+
+  if(focusSet && !html.trim()){
+    html = `<div class="empty-state" style="padding:60px 20px;">
+      <div class="big">Focused chain is empty</div>
+      The focused requirement has no traceable chain at the active levels. Try clearing focus or enabling more level filters.
+    </div>`;
+  }
+
+  wrap.innerHTML = html;
+
+  wrap.querySelectorAll('[data-toggle]').forEach(el => {
+    el.addEventListener('click', e => {
+      if(e.target.closest('.tree-actions')) return;
+      toggleCollapse(el.dataset.toggle);
+    });
+  });
+  wrap.querySelectorAll('[data-edit]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const [t,id] = el.dataset.edit.split(':');
+      selectReq(t,id);
+    });
+  });
+}
+
+function renderTreeSr(srId){
+  const sr = state.sr[srId];
+  const key = 'sr:'+srId;
+  const isCol = collapsed.has(key);
+  let html = `<div class="tree-sr${isCol?' collapsed':''}">`;
+  html += `<div class="tree-sr-hdr" data-toggle="${key}">
+    <span class="tree-caret">${isCol?'▶':'▼'}</span>
+    <span class="tree-id sr">${escapeHtml(srId)}</span>
+    <span class="tree-text${sr.desc?'':' empty'}">${highlightSearch(sr.desc||'(no description)', searchTerm)}</span>
+    ${statusBadge(sr)}
+    <span class="tree-actions"><button class="btn tiny" data-edit="sr:${escapeHtml(srId)}">Edit</button></span>
+  </div>`;
+  if(!isCol){
+    html += `<div class="tree-sr-body">`;
+    const kids = getChildrenOf('sr', srId).filter(k => hierarchyShows('pr', k.id));
+    if(kids.length === 0) html += `<div class="tree-empty-msg">No product requirements linked.</div>`;
+    for(const {id:prId} of kids) html += renderTreePr(prId);
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderTreePr(prId){
+  const pr = state.pr[prId];
+  const key = 'pr:'+prId;
+  const isCol = collapsed.has(key);
+  let html = `<div class="tree-pr${isCol?' collapsed':''}">`;
+  html += `<div class="tree-pr-hdr" data-toggle="${key}">
+    <span class="tree-caret">${isCol?'▶':'▼'}</span>
+    <span class="tree-id pr">${escapeHtml(prId)}</span>
+    <span class="tree-text${pr.desc?'':' empty'}">${highlightSearch(pr.desc||'(no description)', searchTerm)}</span>
+    ${statusBadge(pr)}
+    <span class="tree-actions"><button class="btn tiny" data-edit="pr:${escapeHtml(prId)}">Edit</button></span>
+  </div>`;
+  if(!isCol){
+    html += `<div class="tree-pr-body">`;
+    const kids = getChildrenOf('pr', prId).filter(k => hierarchyShows('ss', k.id));
+    if(kids.length === 0) html += `<div class="tree-empty-msg" style="margin-left:16px;">No verifications linked.</div>`;
+    for(const {id:ssId} of kids) html += renderTreeSs(ssId);
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderTreeSs(ssId){
+  const ss = state.ss[ssId];
+  let html = `<div class="tree-ss">
+    <span class="tree-id ss">${escapeHtml(ssId)}</span>
+    <span class="tree-text${ss.desc?'':' empty'}" style="flex:1;">${highlightSearch(ss.desc||'(no description)', searchTerm)}`;
+  if(ss.do){
+    html += ` <span class="tree-id do" style="margin-left:6px;">${escapeHtml(ss.do)}</span>`;
+  }
+  html += `</span>${statusBadge(ss)}<span class="tree-actions"><button class="btn tiny" data-edit="ss:${escapeHtml(ssId)}">Edit</button></span>`;
+  html += `</div>`;
+  return html;
+}
+
+/* ========================================================================
+   RENDERING — EDIT PANEL
+   ======================================================================== */
+
+function selectReq(type, id){
+  selected = {type, id};
+  // Switch to Edit tab
+  document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.tab==='edit'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id==='tab-edit'));
+  renderEditPanel();
+  renderAll();   // refresh selection highlight
+}
+
+const TYPE_LABELS = { un:'User Need', sr:'System Requirement', pr:'Product Requirement', ss:'Verification' };
+const PARENT_OF = { un:null, sr:'un', pr:'sr', ss:'pr' };
+const CHILD_OF  = { un:'sr', sr:'pr', pr:'ss', ss:null };
+
+function renderEditPanel(){
+  const empty = document.getElementById('edit-empty');
+  const form = document.getElementById('edit-form');
+  if(!selected){
+    empty.style.display = 'block';
+    form.style.display = 'none';
+    return;
+  }
+  const r = state[selected.type][selected.id];
+  if(!r){
+    selected = null;
+    empty.style.display = 'block';
+    form.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  form.style.display = 'block';
+
+  document.getElementById('ef-type').value = TYPE_LABELS[selected.type];
+  document.getElementById('ef-id').value = r.id;
+  document.getElementById('ef-id').dataset.original = r.id;
+  document.getElementById('ef-desc').value = r.desc || '';
+  document.getElementById('ef-status').value = r.status || 'draft';
+  document.getElementById('ef-work').value = r.workNeeded ? 'true' : 'false';
+
+  // Category — only on SR and PR
+  const catWrap = document.getElementById('ef-category-wrap');
+  const catSelect = document.getElementById('ef-category');
+  if(selected.type === 'sr' || selected.type === 'pr'){
+    catWrap.style.display = 'block';
+    // Populate options if empty
+    if(catSelect.options.length === 0){
+      for(const c of REQ_CATEGORIES){
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        catSelect.appendChild(opt);
+      }
+    }
+    catSelect.value = r.category || autoCategorize(r.desc || '');
+  }else{
+    catWrap.style.display = 'none';
+  }
+
+  // Metadata
+  const fmt = ts => ts ? new Date(ts).toLocaleString() : '—';
+  document.getElementById('ef-meta-created').textContent = 'Created: ' + fmt(r.createdAt);
+  document.getElementById('ef-meta-updated').textContent = 'Updated: ' + fmt(r.updatedAt);
+
+  // Design output only on Verification (ss) reqs; Notes available on all types
+  const doLbl = document.getElementById('ef-do-lbl');
+  const doInput = document.getElementById('ef-do');
+  if(selected.type === 'ss'){
+    doLbl.style.display = 'block';
+    doInput.style.display = 'block';
+    doInput.value = r.do || '';
+  }else{
+    doLbl.style.display = 'none';
+    doInput.style.display = 'none';
+  }
+  document.getElementById('ef-notes').value = r.notes || '';
+
+  // Owner — populated for all types, with autocomplete from existing owner values
+  document.getElementById('ef-owner').value = r.owner || '';
+  refreshOwnerDatalist();
+
+  // Comments
+  renderCommentsForSelected();
+
+  // Parents section
+  const parentType = PARENT_OF[selected.type];
+  const parentsSec = document.getElementById('ef-parents-sec');
+  if(!parentType){
+    parentsSec.style.display = 'none';
+  }else{
+    parentsSec.style.display = 'block';
+    document.getElementById('ef-parents-lbl').textContent = 'Parent ' + TYPE_LABELS[parentType] + 's';
+    const parentList = document.getElementById('ef-parents');
+    const parents = getParentsOf(selected.type, selected.id);
+    if(parents.length === 0){
+      parentList.innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic;">No parents linked.</div>`;
+    }else{
+      parentList.innerHTML = parents.map(p => {
+        const desc = getDescOf(p.type, p.id);
+        return `<span class="link-chip ${p.type}" data-jump="${p.type}:${escapeHtml(p.id)}" title="${escapeHtml(desc)}">${escapeHtml(p.id)}<span class="x" data-unlink-parent="${escapeHtml(p.id)}">×</span></span>`;
+      }).join('');
+    }
+    // Parent dropdown
+    const sel = document.getElementById('ef-parent-select');
+    const currentParents = new Set(r.parents || []);
+    const opts = Object.keys(state[parentType]).sort()
+      .filter(pid => !currentParents.has(pid))
+      .map(pid => `<option value="${escapeHtml(pid)}">${escapeHtml(pid)} — ${escapeHtml(getDescOf(parentType, pid).slice(0,60))}</option>`)
+      .join('');
+    sel.innerHTML = `<option value="">+ Add ${TYPE_LABELS[parentType]} link...</option>` + opts;
+  }
+
+  // Children section
+  const childType = CHILD_OF[selected.type];
+  const childrenSec = document.getElementById('ef-children-sec');
+  if(!childType){
+    childrenSec.style.display = 'none';
+  }else{
+    childrenSec.style.display = 'block';
+    document.getElementById('ef-children-lbl').textContent = 'Child ' + TYPE_LABELS[childType] + 's';
+    const childList = document.getElementById('ef-children');
+    const kids = getChildrenOf(selected.type, selected.id);
+    if(kids.length === 0){
+      childList.innerHTML = `<div style="font-size:11px;color:var(--text3);font-style:italic;">No children linked.</div>`;
+    }else{
+      childList.innerHTML = kids.map(k => {
+        const desc = getDescOf(k.type, k.id);
+        return `<span class="link-chip ${k.type}" data-jump="${k.type}:${escapeHtml(k.id)}" title="${escapeHtml(desc)}">${escapeHtml(k.id)}<span class="x" data-unlink-child="${escapeHtml(k.id)}">×</span></span>`;
+      }).join('');
+    }
+    // Child dropdown: only show items not already linked to THIS req
+    const sel = document.getElementById('ef-child-select');
+    const linked = new Set(kids.map(k => k.id));
+    const opts = Object.keys(state[childType]).sort()
+      .filter(cid => !linked.has(cid))
+      .map(cid => `<option value="${escapeHtml(cid)}">${escapeHtml(cid)} — ${escapeHtml(getDescOf(childType, cid).slice(0,60))}</option>`)
+      .join('');
+    sel.innerHTML = `<option value="">+ Add ${TYPE_LABELS[childType]} link...</option>` + opts;
+  }
+
+  // Bind chip clicks (jump + unlink)
+  form.querySelectorAll('[data-jump]').forEach(el => {
+    el.addEventListener('click', e => {
+      if(e.target.classList.contains('x')) return;
+      const [t,id] = el.dataset.jump.split(':');
+      selectReq(t,id);
+    });
+  });
+  form.querySelectorAll('[data-unlink-parent]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const pid = el.dataset.unlinkParent;
+      const parentType = PARENT_OF[selected.type];
+      removeParent(selected.type, selected.id, pid);
+      audit('unlink', `${selected.type}:${selected.id}`, `Removed parent link to ${parentType}:${pid}`);
+      saveState();
+      renderEditPanel();
+      renderAll();
+    });
+  });
+  form.querySelectorAll('[data-unlink-child]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const cid = el.dataset.unlinkChild;
+      const childType = CHILD_OF[selected.type];
+      removeParent(childType, cid, selected.id);
+      audit('unlink', `${childType}:${cid}`, `Removed parent link to ${selected.type}:${selected.id}`);
+      saveState();
+      renderEditPanel();
+      renderAll();
+    });
+  });
+}
+
+function renderCommentsForSelected(){
+  if(!selected) return;
+  const r = state[selected.type][selected.id];
+  if(!r) return;
+  const comments = r.comments || [];
+  document.getElementById('ef-comments-count').textContent = `(${comments.length})`;
+  const list = document.getElementById('ef-comments-list');
+  if(comments.length === 0){
+    list.innerHTML = `<div class="comment-empty">No comments yet.</div>`;
+    return;
+  }
+  list.innerHTML = comments.map((c, idx) => {
+    const author = c.author ? escapeHtml(c.author) : 'Anonymous';
+    const when = c.ts ? new Date(c.ts).toLocaleString() : '';
+    return `<div class="comment-entry">
+      <div class="comment-meta">
+        <span class="comment-author">${author}</span>
+        <span class="comment-when">${when}</span>
+      </div>
+      <div class="comment-body">${escapeHtml(c.text || '')}</div>
+      <div class="comment-actions"><button data-del-comment="${idx}">Delete</button></div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('[data-del-comment]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.delComment, 10);
+      if(!confirm('Delete this comment?')) return;
+      const r = state[selected.type][selected.id];
+      const removed = r.comments.splice(idx, 1)[0];
+      audit('comment', `${selected.type}:${selected.id}`, `Deleted comment by ${removed && removed.author ? removed.author : 'Anonymous'}`);
+      r.updatedAt = new Date().toISOString();
+      saveState();
+      renderCommentsForSelected();
+      renderAll();
+    });
+  });
+}
+
+/* ========================================================================
+   OVERVIEW + GAPS
+   ======================================================================== */
+
+function renderOverview(){
+  document.getElementById('ov-un').textContent = Object.keys(state.un).length;
+  document.getElementById('ov-sr').textContent = Object.keys(state.sr).length;
+  document.getElementById('ov-pr').textContent = Object.keys(state.pr).length;
+  document.getElementById('ov-ss').textContent = Object.keys(state.ss).length;
+
+  let links = 0;
+  for(const t of ['sr','pr','ss']){
+    for(const r of Object.values(state[t])){
+      if(r.parents) links += r.parents.length;
+    }
+  }
+  document.getElementById('ov-links').textContent = links;
+
+  // Orphan count: any item missing required parent in chain (excluding UN, which is root)
+  let orphans = 0;
+  for(const r of Object.values(state.sr)){
+    if(!r.parents || r.parents.length === 0 || !r.parents.some(p => state.un[p])) orphans++;
+  }
+  for(const r of Object.values(state.pr)){
+    if(!r.parents || r.parents.length === 0 || !r.parents.some(p => state.sr[p])) orphans++;
+  }
+  for(const r of Object.values(state.ss)){
+    if(!r.parents || r.parents.length === 0 || !r.parents.some(p => state.pr[p])) orphans++;
+  }
+  document.getElementById('ov-orphans').textContent = orphans;
+
+  // Coverage: percent of UN that have at least one full chain to a PR
+  const cov = document.getElementById('coverage-list');
+  const totUn = Object.keys(state.un).length;
+  let coveredUn = 0;
+  for(const unId of Object.keys(state.un)){
+    const srs = getChildrenOf('un', unId);
+    let hasChain = false;
+    for(const {id:srId} of srs){
+      if(getChildrenOf('sr', srId).length > 0){ hasChain = true; break; }
+    }
+    if(hasChain) coveredUn++;
+  }
+  const pct = totUn === 0 ? 0 : Math.round(100*coveredUn/totUn);
+  cov.innerHTML = `<div style="font-size:12px;color:var(--text2);line-height:1.6;">
+    User Needs traced through to Product Reqs: <b style="font-family:'IBM Plex Mono',monospace;">${coveredUn} / ${totUn}</b> (${pct}%)
+  </div>`;
+}
+
+function renderGaps(){
+  const gapItem = (type, id, msg) => {
+    const desc = getDescOf(type, id);
+    return `<div class="gap-item" data-jump="${type}:${escapeHtml(id)}">
+      <span class="gid" style="color:var(--${type});">${escapeHtml(id)}</span>
+      <span style="flex:1;color:var(--text2);">${escapeHtml((desc||msg).slice(0,90))}</span>
+    </div>`;
+  };
+
+  // UN without SR
+  const unNoSr = Object.keys(state.un).sort().filter(id => getChildrenOf('un', id).length === 0);
+  document.getElementById('gap-un').innerHTML = unNoSr.length ? unNoSr.map(id => gapItem('un', id, '(no description)')).join('') : '<div class="gap-empty">All user needs are linked.</div>';
+
+  // SR without parent UN
+  const srNoUp = Object.keys(state.sr).sort().filter(id => {
+    const r = state.sr[id]; return !r.parents || r.parents.length === 0 || !r.parents.some(p => state.un[p]);
+  });
+  document.getElementById('gap-sr-up').innerHTML = srNoUp.length ? srNoUp.map(id => gapItem('sr', id, '(no description)')).join('') : '<div class="gap-empty">All system requirements have a parent user need.</div>';
+
+  // SR without PR
+  const srNoDown = Object.keys(state.sr).sort().filter(id => getChildrenOf('sr', id).length === 0);
+  document.getElementById('gap-sr-down').innerHTML = srNoDown.length ? srNoDown.map(id => gapItem('sr', id, '(no description)')).join('') : '<div class="gap-empty">All system requirements have product requirements.</div>';
+
+  // PR without parent SR
+  const prNoUp = Object.keys(state.pr).sort().filter(id => {
+    const r = state.pr[id]; return !r.parents || r.parents.length === 0 || !r.parents.some(p => state.sr[p]);
+  });
+  document.getElementById('gap-pr').innerHTML = prNoUp.length ? prNoUp.map(id => gapItem('pr', id, '(no description)')).join('') : '<div class="gap-empty">All product requirements have a parent system requirement.</div>';
+
+  // SS without parent PR
+  const ssNoUp = Object.keys(state.ss).sort().filter(id => {
+    const r = state.ss[id]; return !r.parents || r.parents.length === 0 || !r.parents.some(p => state.pr[p]);
+  });
+  document.getElementById('gap-ss').innerHTML = ssNoUp.length ? ssNoUp.map(id => gapItem('ss', id, '(no description)')).join('') : '<div class="gap-empty">All verifications have a parent product requirement.</div>';
+
+  // Work Needed flagged across all types
+  const workItems = [];
+  for(const t of ['un','sr','pr','ss']){
+    for(const id of Object.keys(state[t]).sort()){
+      if(state[t][id].workNeeded) workItems.push({type:t, id});
+    }
+  }
+  document.getElementById('gap-work').innerHTML = workItems.length
+    ? workItems.map(w => gapItem(w.type, w.id, '(no description)')).join('')
+    : '<div class="gap-empty">No requirements flagged as work needed.</div>';
+
+  // Possible duplicates: group SRs and PRs by normalized first 60 chars of
+  // description and surface any group that contains 2+ items.
+  const dupeGroups = findPossibleDuplicates();
+  if(dupeGroups.length === 0){
+    document.getElementById('gap-dupes').innerHTML = '<div class="gap-empty">No likely duplicates detected.</div>';
+  }else{
+    let html = '';
+    for(const grp of dupeGroups){
+      html += `<div style="margin-bottom:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;">`;
+      html += `<div style="font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:4px;">${grp.length} possible duplicates</div>`;
+      for(const item of grp){
+        html += `<div class="gap-item" data-jump="${item.type}:${escapeHtml(item.id)}" style="background:var(--surface);">
+          <span class="gid" style="color:var(--${item.type});">${escapeHtml(item.id)}</span>
+          <span style="flex:1;color:var(--text2);">${escapeHtml(item.previewDesc)}</span>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+    document.getElementById('gap-dupes').innerHTML = html;
+  }
+
+  document.querySelectorAll('#tab-gaps [data-jump]').forEach(el => {
+    el.addEventListener('click', () => {
+      const [t,id] = el.dataset.jump.split(':');
+      selectReq(t,id);
+    });
+  });
+}
+
+// Group SRs and PRs by normalized prefix of their description and return
+// an array of groups (each group >= 2 items). Normalization lowercases,
+// strips trailing punctuation, and uses the first 60 characters of the
+// content (after stripping any [Notes: ...] tail).
+function findPossibleDuplicates(){
+  const groups = {};
+  for(const t of ['sr','pr']){
+    for(const id of Object.keys(state[t])){
+      const r = state[t][id];
+      const desc = (r.desc || '').replace(/\s*\[(?:Notes?|Owner|Verification)[^\]]*\]\s*$/i, '').trim();
+      if(desc.length < 20) continue; // skip stubs
+      const key = desc.toLowerCase().slice(0, 60).replace(/\s+/g, ' ').replace(/[.,;:!?]+$/, '').trim();
+      if(!key) continue;
+      if(!groups[key]) groups[key] = [];
+      groups[key].push({type: t, id, previewDesc: desc.slice(0, 90)});
+    }
+  }
+  // Keep only groups with 2 or more items, sort by group size desc then by first id
+  const result = Object.values(groups).filter(g => g.length >= 2);
+  result.sort((a, b) => {
+    if(b.length !== a.length) return b.length - a.length;
+    return a[0].id.localeCompare(b[0].id);
+  });
+  return result;
+}
+
+function renderAuditLog(){
+  const list = document.getElementById('audit-list');
+  if(!list) return;
+  const log = state.auditLog || [];
+  if(log.length === 0){
+    list.innerHTML = `<div class="al-empty">No activity yet. Create, edit, or comment on a requirement to start the log.</div>`;
+    return;
+  }
+  // Most recent first
+  const items = log.slice().reverse();
+  list.innerHTML = items.map(e => {
+    const when = new Date(e.ts).toLocaleString();
+    const action = (e.action || '').toLowerCase();
+    return `<div class="al-entry">
+      <div><span class="al-action ${action}">${escapeHtml(e.action || '')}</span><span class="al-target">${escapeHtml(e.target || '')}</span></div>
+      ${e.detail ? `<div class="al-detail">${escapeHtml(e.detail)}</div>` : ''}
+      <div class="al-when">${when}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ========================================================================
+   STATUS BAR
+   ======================================================================== */
+
+function renderStatus(){
+  const c = Object.keys(state.un).length + Object.keys(state.sr).length + Object.keys(state.pr).length + Object.keys(state.ss).length;
+  document.getElementById('status-counts').textContent = `${c} reqs · ${Object.keys(state.un).length} UN · ${Object.keys(state.sr).length} SR · ${Object.keys(state.pr).length} PR · ${Object.keys(state.ss).length} SS`;
+}
+
+/* ========================================================================
+   GRAPH VIEW — node-and-edge visualization
+   ------------------------------------------------------------------------
+   Four columns of cards (User Need / System / Product / Sub-system) laid
+   out left-to-right with bezier curves between linked parents and children.
+   Pan with drag, zoom with wheel. Click a card to select+edit.
+   Cards are positioned by topological order so parents appear above their
+   children.
+   ======================================================================== */
+
+const graph = {
+  zoom: 1,
+  pan: {x: 0, y: 0},
+  nodes: [],          // {type, id, x, y, w, h, label, sub}
+  nodeIndex: {},      // type+id -> node
+  edges: [],          // {from:{type,id}, to:{type,id}}
+  hoverNode: null,
+  needsLayout: true,
+};
+
+const GRAPH_COLS = {
+  un: {x: 0, color:'#7c3aed', bg:'rgba(124,58,237,.10)', bd:'rgba(124,58,237,.45)', label:'USER NEED'},
+  sr: {x: 1, color:'#2563eb', bg:'rgba(37,99,235,.10)', bd:'rgba(37,99,235,.45)', label:'SYSTEM REQ'},
+  pr: {x: 2, color:'#16a34a', bg:'rgba(22,163,74,.10)', bd:'rgba(22,163,74,.45)', label:'PRODUCT REQ'},
+  ss: {x: 3, color:'#d97706', bg:'rgba(217,119,6,.10)', bd:'rgba(217,119,6,.45)', label:'VERIFICATION'},
+};
+
+const GRAPH_COL_W = 260;     // column width
+const GRAPH_COL_GAP = 90;    // horizontal gap between columns
+const GRAPH_NODE_W = 230;    // card width
+const GRAPH_NODE_PAD_X = 14; // text padding inside card
+const GRAPH_LINE_H = 16;     // text line height in card
+const GRAPH_NODE_MIN_H = 56; // minimum card height
+const GRAPH_NODE_VGAP = 16;  // vertical gap between cards in a column
+
+function graphLayout(){
+  graph.nodes = [];
+  graph.nodeIndex = {};
+  graph.edges = [];
+
+  // Filter active levels
+  const allLevels = ['un','sr','pr','ss'];
+  const activeLevels = allLevels.filter(l => filterFlags[l]);
+  if(activeLevels.length === 0){ graph.needsLayout = false; return; }
+
+  // For each active level, decide vertical order. Use topological grouping:
+  // user needs in id order, then their system reqs grouped beneath, etc.
+  // To keep it simple and stable: each level is sorted by ID for now.
+  // (Could be improved with parent-anchored ordering later.)
+
+  // First pass: measure each card's height based on description text wrap
+  const tmp = document.createElement('canvas').getContext('2d');
+  tmp.font = '500 12px "IBM Plex Sans",sans-serif';
+
+  function measureNode(type, id){
+    const r = state[type][id];
+    const desc = r ? (r.desc || '(no description)') : '';
+    const idStr = id;
+    // wrap desc to fit GRAPH_NODE_W - 2*PAD
+    const maxW = GRAPH_NODE_W - 2*GRAPH_NODE_PAD_X;
+    const words = desc.split(/\s+/);
+    const lines = [];
+    let cur = '';
+    for(const w of words){
+      const t = cur ? cur + ' ' + w : w;
+      if(tmp.measureText(t).width > maxW && cur){ lines.push(cur); cur = w; }
+      else cur = t;
+    }
+    if(cur) lines.push(cur);
+    // truncate to max 5 lines, append ellipsis
+    let truncated = false;
+    if(lines.length > 5){ lines.length = 5; lines[4] = lines[4].slice(0, -3) + '...'; truncated = true; }
+    const h = Math.max(GRAPH_NODE_MIN_H, 28 + lines.length * GRAPH_LINE_H + 8);
+    let sub = '';
+    if(type === 'ss' && r && r.do) sub = r.do;
+    return {h, lines, sub};
+  }
+
+  // Filter pass — also respect search and orphan filter
+  const matchSearch = (type, id) => {
+    if(!searchTerm) return true;
+    const t = searchTerm.toLowerCase();
+    if(id.toLowerCase().includes(t)) return true;
+    const desc = getDescOf(type, id);
+    if(desc && desc.toLowerCase().includes(t)) return true;
+    return false;
+  };
+
+  const isOrphan = (type, id) => {
+    if(type === 'un') return false;
+    const r = state[type][id];
+    if(!r || !r.parents || r.parents.length === 0) return true;
+    const parentMap = {sr:'un', pr:'sr', ss:'pr'};
+    return !r.parents.some(p => state[parentMap[type]][p]);
+  };
+
+  const includeNode = (type, id) => {
+    if(!inFocus(type, id)) return false;
+    if(filterFlags.orphans && !isOrphan(type, id)) return false;
+    if(filterFlags.work && !inWorkChain(type, id)) return false;
+    return matchSearch(type, id);
+  };
+
+  // Also: if search is active, we want to include the node if any neighbor matches
+  // so the path is preserved. Compute the closure.
+  const directHits = new Set();
+  for(const lv of activeLevels){
+    for(const id of Object.keys(state[lv])){
+      if(matchSearch(lv, id)) directHits.add(lv+':'+id);
+    }
+  }
+  // Expand: include nodes within 1 hop of a hit
+  const includeSet = new Set();
+  if(searchTerm){
+    for(const key of directHits){
+      includeSet.add(key);
+      const [t, id] = key.split(':');
+      // parents
+      const parents = getParentsOf(t, id);
+      for(const p of parents) if(activeLevels.includes(p.type)) includeSet.add(p.type+':'+p.id);
+      // children
+      const kids = getChildrenOf(t, id);
+      for(const k of kids) if(activeLevels.includes(k.type)) includeSet.add(k.type+':'+k.id);
+    }
+  }
+
+  // Place nodes column by column
+  const colXBase = 80; // starting x for first column
+  let maxCol = 0;
+  for(const lv of activeLevels){
+    const colIdx = activeLevels.indexOf(lv);
+    const colX = colXBase + colIdx * (GRAPH_NODE_W + GRAPH_COL_GAP);
+    const ids = Object.keys(state[lv]).sort()
+      .filter(id => includeNode(lv, id))
+      .filter(id => !searchTerm || includeSet.has(lv+':'+id));
+
+    let y = 60;
+    for(const id of ids){
+      const m = measureNode(lv, id);
+      const node = {
+        type: lv,
+        id,
+        x: colX,
+        y,
+        w: GRAPH_NODE_W,
+        h: m.h,
+        lines: m.lines,
+        sub: m.sub,
+      };
+      graph.nodes.push(node);
+      graph.nodeIndex[lv+':'+id] = node;
+      y += m.h + GRAPH_NODE_VGAP;
+    }
+    maxCol = Math.max(maxCol, y);
+  }
+
+  // Sort children near their parents by reordering — simple heuristic:
+  // for each level beyond the first active, set its node y to the average
+  // of its parents' y values. Then sort by y, then re-stack so they don't overlap.
+  for(let li=1; li<activeLevels.length; li++){
+    const lv = activeLevels[li];
+    const nodes = graph.nodes.filter(n => n.type === lv);
+    // Compute desired y from parents
+    for(const n of nodes){
+      const r = state[lv][n.id];
+      const ys = [];
+      if(r.parents){
+        for(const pid of r.parents){
+          // parent must be in a visible level; find nearest visible parent type up the chain
+          const parentMap = {sr:'un', pr:'sr', ss:'pr'};
+          const pt = parentMap[lv];
+          if(filterFlags[pt]){
+            const pn = graph.nodeIndex[pt+':'+pid];
+            if(pn) ys.push(pn.y + pn.h/2);
+          }
+        }
+      }
+      n.desiredY = ys.length ? ys.reduce((a,b)=>a+b,0)/ys.length : n.y + n.h/2;
+    }
+    nodes.sort((a,b) => a.desiredY - b.desiredY);
+    let y = 60;
+    for(const n of nodes){
+      n.y = y;
+      y += n.h + GRAPH_NODE_VGAP;
+    }
+  }
+
+  // Build edges: for each child node, draw edge from each parent
+  for(const lv of ['sr','pr','ss']){
+    if(!filterFlags[lv]) continue;
+    const parentMap = {sr:'un', pr:'sr', ss:'pr'};
+    const pt = parentMap[lv];
+    if(!filterFlags[pt]) continue;
+    for(const id of Object.keys(state[lv])){
+      const n = graph.nodeIndex[lv+':'+id];
+      if(!n) continue;
+      const r = state[lv][id];
+      if(!r.parents) continue;
+      for(const pid of r.parents){
+        const pn = graph.nodeIndex[pt+':'+pid];
+        if(pn) graph.edges.push({from: pn, to: n});
+      }
+    }
+  }
+
+  graph.needsLayout = false;
+}
+
+function fitGraph(){
+  if(!graph.nodes.length) return;
+  const canvas = document.getElementById('graph-canvas');
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for(const n of graph.nodes){
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + n.w);
+    maxY = Math.max(maxY, n.y + n.h);
+  }
+  const pad = 60;
+  const cw = maxX - minX + pad*2;
+  const ch = maxY - minY + pad*2;
+  const z = Math.min(W/cw, H/ch, 1);
+  graph.zoom = Math.max(0.15, z);
+  graph.pan.x = (W - (maxX+minX)*graph.zoom) / 2;
+  graph.pan.y = (H - (maxY+minY)*graph.zoom) / 2;
+  drawGraph();
+}
+
+function drawGraph(){
+  const canvas = document.getElementById('graph-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  if(canvas.width !== W*dpr || canvas.height !== H*dpr){
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid
+  ctx.save();
+  ctx.strokeStyle = 'rgba(175,185,210,.20)';
+  ctx.lineWidth = 0.5;
+  const gs = 24;
+  const ox = ((graph.pan.x % gs) + gs) % gs;
+  const oy = ((graph.pan.y % gs) + gs) % gs;
+  for(let x=ox; x<W; x+=gs){ ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for(let y=oy; y<H; y+=gs){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  ctx.restore();
+
+  // Apply pan + zoom transform for world content
+  ctx.save();
+  ctx.translate(graph.pan.x, graph.pan.y);
+  ctx.scale(graph.zoom, graph.zoom);
+
+  // Build highlight set: if a node is selected or hovered, dim others
+  const focus = graph.hoverNode || (selected ? graph.nodeIndex[selected.type+':'+selected.id] : null);
+  let highlightIds = null;
+  if(focus){
+    highlightIds = new Set();
+    highlightIds.add(focus.type+':'+focus.id);
+    // Walk ancestors and descendants
+    const collectAncestors = (type, id) => {
+      const parents = getParentsOf(type, id);
+      for(const p of parents){
+        const k = p.type+':'+p.id;
+        if(highlightIds.has(k)) continue;
+        highlightIds.add(k);
+        collectAncestors(p.type, p.id);
+      }
+    };
+    const collectDescendants = (type, id) => {
+      const kids = getChildrenOf(type, id);
+      for(const k of kids){
+        const kk = k.type+':'+k.id;
+        if(highlightIds.has(kk)) continue;
+        highlightIds.add(kk);
+        collectDescendants(k.type, k.id);
+      }
+    };
+    collectAncestors(focus.type, focus.id);
+    collectDescendants(focus.type, focus.id);
+  }
+
+  // Draw edges
+  for(const e of graph.edges){
+    const dim = highlightIds && (!highlightIds.has(e.from.type+':'+e.from.id) || !highlightIds.has(e.to.type+':'+e.to.id));
+    const sx = e.from.x + e.from.w;
+    const sy = e.from.y + e.from.h/2;
+    const tx = e.to.x;
+    const ty = e.to.y + e.to.h/2;
+    const cp1x = sx + (tx - sx) * 0.5;
+    const cp1y = sy;
+    const cp2x = sx + (tx - sx) * 0.5;
+    const cp2y = ty;
+    ctx.save();
+    ctx.globalAlpha = dim ? 0.10 : 0.65;
+    ctx.strokeStyle = highlightIds && !dim ? '#2563eb' : 'rgba(75,90,125,.55)';
+    ctx.lineWidth = highlightIds && !dim ? 1.8 : 1.2;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, tx, ty);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Draw nodes
+  for(const n of graph.nodes){
+    const isSel = selected && selected.type === n.type && selected.id === n.id;
+    const isHov = graph.hoverNode === n;
+    const dim = highlightIds && !highlightIds.has(n.type+':'+n.id);
+    const c = GRAPH_COLS[n.type];
+    const r = state[n.type][n.id];
+    const status = (r && r.status) || 'draft';
+    const work = r && r.workNeeded;
+    const STATUS_C = { draft:'#9ca3af', 'in-review':'#0891b2', approved:'#16a34a', obsolete:'#78716c' };
+
+    ctx.save();
+    ctx.globalAlpha = dim ? 0.22 : 1;
+
+    // Card body
+    ctx.beginPath();
+    roundRect(ctx, n.x, n.y, n.w, n.h, 6);
+    ctx.fillStyle = status === 'obsolete' ? '#f7f8fb' : '#fff';
+    ctx.fill();
+
+    // Top color bar
+    ctx.beginPath();
+    roundRect(ctx, n.x, n.y, n.w, 4, [6, 6, 0, 0]);
+    ctx.fillStyle = c.color;
+    ctx.fill();
+
+    // Border
+    ctx.beginPath();
+    roundRect(ctx, n.x, n.y, n.w, n.h, 6);
+    ctx.strokeStyle = isSel ? c.color : (isHov ? c.color : c.bd);
+    ctx.lineWidth = isSel ? 2 : 1;
+    ctx.stroke();
+
+    // Status dot — top-left under the color bar
+    ctx.beginPath();
+    ctx.arc(n.x + 9, n.y + 16, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = STATUS_C[status] || '#9ca3af';
+    ctx.fill();
+
+    // Work-needed corner triangle — top-right
+    if(work){
+      ctx.beginPath();
+      ctx.moveTo(n.x + n.w - 14, n.y + 6);
+      ctx.lineTo(n.x + n.w - 4, n.y + 6);
+      ctx.lineTo(n.x + n.w - 4, n.y + 16);
+      ctx.closePath();
+      ctx.fillStyle = '#d97706';
+      ctx.fill();
+    }
+
+    // Type label + ID — top row (push right past status dot)
+    ctx.font = '600 9.5px "IBM Plex Mono", monospace';
+    ctx.fillStyle = c.color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(c.label, n.x + GRAPH_NODE_PAD_X + 4, n.y + 10);
+
+    ctx.font = '600 11px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(n.id, n.x + n.w - GRAPH_NODE_PAD_X - (work ? 14 : 0), n.y + 10);
+
+    // Description lines (strike through for obsolete)
+    ctx.font = '500 12px "IBM Plex Sans", sans-serif';
+    ctx.fillStyle = status === 'obsolete' ? '#78716c' : '#1a1d26';
+    ctx.textAlign = 'left';
+    let ty = n.y + 28;
+    for(const line of n.lines){
+      ctx.fillText(line, n.x + GRAPH_NODE_PAD_X, ty);
+      if(status === 'obsolete'){
+        const lw = ctx.measureText(line).width;
+        ctx.beginPath();
+        ctx.moveTo(n.x + GRAPH_NODE_PAD_X, ty + 6);
+        ctx.lineTo(n.x + GRAPH_NODE_PAD_X + lw, ty + 6);
+        ctx.strokeStyle = '#78716c';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ty += GRAPH_LINE_H;
+    }
+
+    // Sub label (e.g., DO part #)
+    if(n.sub){
+      ctx.font = '500 10px "IBM Plex Mono", monospace';
+      ctx.fillStyle = c.color;
+      ctx.fillText('▢ ' + n.sub, n.x + GRAPH_NODE_PAD_X, n.y + n.h - 16);
+    }
+
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r){
+  if(typeof r === 'number') r = [r,r,r,r];
+  ctx.moveTo(x+r[0], y);
+  ctx.lineTo(x+w-r[1], y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r[1]);
+  ctx.lineTo(x+w, y+h-r[2]);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r[2], y+h);
+  ctx.lineTo(x+r[3], y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r[3]);
+  ctx.lineTo(x, y+r[0]);
+  ctx.quadraticCurveTo(x, y, x+r[0], y);
+  ctx.closePath();
+}
+
+function nodeAt(clientX, clientY){
+  const canvas = document.getElementById('graph-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const wx = (clientX - rect.left - graph.pan.x) / graph.zoom;
+  const wy = (clientY - rect.top - graph.pan.y) / graph.zoom;
+  // Iterate in reverse so top-rendered nodes win
+  for(let i = graph.nodes.length - 1; i >= 0; i--){
+    const n = graph.nodes[i];
+    if(wx >= n.x && wx <= n.x + n.w && wy >= n.y && wy <= n.y + n.h) return n;
+  }
+  return null;
+}
+
+function renderGraph(){
+  graph.needsLayout = true;
+  graphLayout();
+  // If first time entering graph view, fit it
+  if(graph.zoom === 1 && graph.pan.x === 0 && graph.pan.y === 0){
+    fitGraph();
+  }else{
+    drawGraph();
+  }
+  updateZoomLabel();
+}
+
+function updateZoomLabel(){
+  const el = document.getElementById('graph-zoom-pct');
+  if(el) el.textContent = Math.round(graph.zoom * 100) + '%';
+}
+
+/* ========================================================================
+   ORCHESTRATION
+   ======================================================================== */
+
+function renderAll(){
+  if(activeView === 'matrix') renderMatrix();
+  else if(activeView === 'tree') renderTree();
+  else if(activeView === 'graph') renderGraph();
+  renderOverview();
+  renderGaps();
+  renderAuditLog();
+  renderStatus();
+}
+
+/* ========================================================================
+   EVENT BINDINGS
+   ======================================================================== */
+
+// View toggle
+function setActiveView(v){
+  activeView = v;
+  document.getElementById('view-matrix').classList.toggle('active', v === 'matrix');
+  document.getElementById('view-tree').classList.toggle('active', v === 'tree');
+  document.getElementById('view-graph').classList.toggle('active', v === 'graph');
+  document.getElementById('matrix-wrap').style.display = v === 'matrix' ? '' : 'none';
+  document.getElementById('tree-wrap').style.display = v === 'tree' ? '' : 'none';
+  document.getElementById('graph-wrap').style.display = v === 'graph' ? '' : 'none';
+  renderAll();
+}
+document.getElementById('view-matrix').addEventListener('click', () => setActiveView('matrix'));
+document.getElementById('view-tree').addEventListener('click', () => setActiveView('tree'));
+document.getElementById('view-graph').addEventListener('click', () => setActiveView('graph'));
+
+// Focus button
+document.getElementById('focus-btn').addEventListener('click', () => {
+  if(focusSet){ clearFocus(); }
+  else { focusSelected(); }
+});
+
+// Bulk select mode
+document.getElementById('bulk-toggle').addEventListener('click', () => {
+  if(bulkMode) exitBulkMode();
+  else enterBulkMode();
+});
+document.getElementById('bulk-status').addEventListener('click', bulkApplyStatus);
+document.getElementById('bulk-category').addEventListener('click', bulkApplyCategory);
+document.getElementById('bulk-owner').addEventListener('click', bulkApplyOwner);
+document.getElementById('bulk-work').addEventListener('click', bulkApplyWork);
+document.getElementById('bulk-delete').addEventListener('click', bulkDelete);
+document.getElementById('bulk-clear').addEventListener('click', () => {
+  bulkSelected.clear();
+  updateBulkCount();
+  renderAll();
+});
+document.getElementById('bulk-select-all').addEventListener('click', bulkSelectAllVisible);
+document.getElementById('bulk-exit').addEventListener('click', exitBulkMode);
+
+// Keyboard: F to focus on selected, Escape to clear focus
+document.addEventListener('keydown', e => {
+  // Don't trigger when typing in inputs
+  const tag = (e.target.tagName || '').toLowerCase();
+  if(tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  if(e.key === 'f' || e.key === 'F'){
+    e.preventDefault();
+    if(focusSet){ clearFocus(); }
+    else { focusSelected(); }
+  }else if(e.key === 'Escape' && focusSet){
+    clearFocus();
+  }
+});
+
+// Graph canvas interaction
+(function setupGraphCanvas(){
+  const canvas = document.getElementById('graph-canvas');
+  let dragging = false, dragStart = null, lastPan = null, didDrag = false;
+
+  canvas.addEventListener('mousedown', e => {
+    dragging = true;
+    didDrag = false;
+    dragStart = {x: e.clientX, y: e.clientY};
+    lastPan = {x: graph.pan.x, y: graph.pan.y};
+    canvas.classList.add('grabbing');
+  });
+  canvas.addEventListener('mousemove', e => {
+    if(dragging){
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      if(Math.abs(dx) > 2 || Math.abs(dy) > 2) didDrag = true;
+      graph.pan.x = lastPan.x + dx;
+      graph.pan.y = lastPan.y + dy;
+      drawGraph();
+    }else{
+      const n = nodeAt(e.clientX, e.clientY);
+      if(n !== graph.hoverNode){
+        graph.hoverNode = n;
+        canvas.style.cursor = n ? 'pointer' : 'grab';
+        drawGraph();
+      }
+    }
+  });
+  canvas.addEventListener('mouseup', e => {
+    dragging = false;
+    canvas.classList.remove('grabbing');
+    if(!didDrag){
+      const n = nodeAt(e.clientX, e.clientY);
+      if(n) selectReq(n.type, n.id);
+    }
+  });
+  canvas.addEventListener('mouseleave', () => {
+    dragging = false;
+    graph.hoverNode = null;
+    canvas.classList.remove('grabbing');
+    drawGraph();
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const wx = (mx - graph.pan.x) / graph.zoom;
+    const wy = (my - graph.pan.y) / graph.zoom;
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    graph.zoom = Math.max(0.15, Math.min(3, graph.zoom * factor));
+    graph.pan.x = mx - wx * graph.zoom;
+    graph.pan.y = my - wy * graph.zoom;
+    drawGraph();
+    updateZoomLabel();
+  }, {passive: false});
+
+  // Resize canvas to track container
+  const ro = new ResizeObserver(() => { if(activeView === 'graph') drawGraph(); });
+  ro.observe(canvas.parentElement);
+})();
+
+document.getElementById('graph-fit').addEventListener('click', () => { fitGraph(); updateZoomLabel(); });
+document.getElementById('graph-layout').addEventListener('click', () => {
+  graph.needsLayout = true;
+  graphLayout();
+  fitGraph();
+  updateZoomLabel();
+  toast('Layout refreshed');
+});
+document.getElementById('graph-zoom-in').addEventListener('click', () => {
+  graph.zoom = Math.min(3, graph.zoom * 1.2);
+  drawGraph(); updateZoomLabel();
+});
+document.getElementById('graph-zoom-out').addEventListener('click', () => {
+  graph.zoom = Math.max(0.15, graph.zoom / 1.2);
+  drawGraph(); updateZoomLabel();
+});
+
+// Audit clear
+document.getElementById('audit-clear').addEventListener('click', () => {
+  if(!confirm('Clear the audit log? Past activity will be permanently removed.')) return;
+  state.auditLog = [];
+  saveState();
+  renderAuditLog();
+  toast('Audit log cleared');
+});
+
+// Side-panel tabs
+document.querySelectorAll('.ptab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.ptab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('tab-' + t.dataset.tab).classList.add('active');
+  });
+});
+
+// Filter buttons
+document.querySelectorAll('.fbtn').forEach(b => {
+  b.addEventListener('click', () => {
+    const f = b.dataset.filter;
+    filterFlags[f] = !filterFlags[f];
+    b.classList.toggle('on', filterFlags[f]);
+    b.classList.toggle('off', !filterFlags[f]);
+    renderAll();
+  });
+});
+
+// Search
+document.getElementById('search-input').addEventListener('input', e => {
+  searchTerm = e.target.value.trim();
+  renderAll();
+});
+
+// Add buttons → open modal
+let modalContext = null;
+function openCreateModal(type){
+  modalContext = type;
+  document.getElementById('modal-title').textContent = 'New ' + TYPE_LABELS[type];
+  document.getElementById('modal-id').value = nextId(type);
+  document.getElementById('modal-desc').value = '';
+  document.getElementById('modal-do-wrap').style.display = type === 'ss' ? 'block' : 'none';
+  document.getElementById('modal-do').value = '';
+  document.getElementById('modal').classList.add('show');
+  setTimeout(() => document.getElementById('modal-id').focus(), 50);
+}
+document.getElementById('add-un').addEventListener('click', () => openCreateModal('un'));
+document.getElementById('add-sr').addEventListener('click', () => openCreateModal('sr'));
+document.getElementById('add-pr').addEventListener('click', () => openCreateModal('pr'));
+document.getElementById('add-ss').addEventListener('click', () => openCreateModal('ss'));
+
+document.getElementById('modal-cancel').addEventListener('click', () => {
+  document.getElementById('modal').classList.remove('show');
+});
+document.getElementById('modal-create').addEventListener('click', () => {
+  const id = document.getElementById('modal-id').value.trim();
+  const desc = document.getElementById('modal-desc').value.trim();
+  if(!id){ toast('ID is required'); return; }
+  // uniqueness across all types
+  for(const t of ['un','sr','pr','ss']){
+    if(state[t][id]){ toast(`ID ${id} already exists as a ${TYPE_LABELS[t]}`); return; }
+  }
+  const now = new Date().toISOString();
+  const obj = {
+    id, desc,
+    status: 'draft',
+    workNeeded: false,
+    comments: [],
+    notes: '',
+    owner: '',
+    createdAt: now,
+    updatedAt: now,
+  };
+  if(modalContext !== 'un') obj.parents = [];
+  if(modalContext === 'sr' || modalContext === 'pr'){
+    obj.category = autoCategorize(desc);
+  }
+  if(modalContext === 'ss'){
+    obj.do = document.getElementById('modal-do').value.trim();
+  }
+  state[modalContext][id] = obj;
+  audit('create', `${modalContext}:${id}`, `Created new ${TYPE_LABELS[modalContext]}`);
+  saveState();
+  document.getElementById('modal').classList.remove('show');
+  selectReq(modalContext, id);
+  renderAll();
+  toast(`Created ${id}`);
+});
+// Enter inside modal triggers create
+document.getElementById('modal').addEventListener('keydown', e => {
+  if(e.key === 'Enter' && (e.target.tagName === 'INPUT')){
+    e.preventDefault();
+    document.getElementById('modal-create').click();
+  }
+  if(e.key === 'Escape') document.getElementById('modal-cancel').click();
+});
+
+// Edit panel save / delete
+document.getElementById('ef-save').addEventListener('click', () => {
+  if(!selected) return;
+  const newId = document.getElementById('ef-id').value.trim();
+  const oldId = document.getElementById('ef-id').dataset.original;
+  const newDesc = document.getElementById('ef-desc').value.trim();
+  const newStatus = document.getElementById('ef-status').value;
+  const newWork = document.getElementById('ef-work').value === 'true';
+  if(!newId){ toast('ID is required'); return; }
+  if(newId !== oldId){
+    if(!renameReq(selected.type, oldId, newId)){
+      toast(`ID ${newId} already exists`); return;
+    }
+    audit('update', `${selected.type}:${oldId} → ${newId}`, `Renamed`);
+    selected.id = newId;
+  }
+  const r = state[selected.type][selected.id];
+  const changes = [];
+  if(r.desc !== newDesc) changes.push('description');
+  if(r.status !== newStatus){ changes.push(`status: ${r.status} → ${newStatus}`); audit('status', `${selected.type}:${selected.id}`, `${r.status} → ${newStatus}`); }
+  if(r.workNeeded !== newWork){ changes.push(`work-needed: ${r.workNeeded ? 'yes' : 'no'} → ${newWork ? 'yes' : 'no'}`); }
+
+  const newNotes = document.getElementById('ef-notes').value.trim();
+  if((r.notes || '') !== newNotes) changes.push('notes');
+
+  const newOwner = document.getElementById('ef-owner').value.trim();
+  if((r.owner || '') !== newOwner) changes.push(`owner: ${r.owner || '(none)'} → ${newOwner || '(none)'}`);
+
+  r.desc = newDesc;
+  r.status = newStatus;
+  r.workNeeded = newWork;
+  r.notes = newNotes;
+  r.owner = newOwner;
+  r.updatedAt = new Date().toISOString();
+
+  if(selected.type === 'sr' || selected.type === 'pr'){
+    const newCat = document.getElementById('ef-category').value;
+    if((r.category || '') !== newCat){ changes.push(`category: ${r.category || '(none)'} → ${newCat}`); }
+    r.category = newCat;
+  }
+
+  if(selected.type === 'ss'){
+    const newDo = document.getElementById('ef-do').value.trim();
+    if(state.ss[selected.id].do !== newDo) changes.push('design output');
+    state.ss[selected.id].do = newDo;
+  }
+  if(changes.length){
+    audit('update', `${selected.type}:${selected.id}`, `Changed: ${changes.join(', ')}`);
+  }
+  saveState();
+  renderEditPanel();
+  renderAll();
+  toast('Saved');
+});
+document.getElementById('ef-delete').addEventListener('click', () => {
+  if(!selected) return;
+  if(!confirm(`Delete ${selected.id}? Trace links from this requirement will be removed.`)) return;
+  // If we're deleting the focus anchor, clear focus
+  if(focusAnchor && focusAnchor.type === selected.type && focusAnchor.id === selected.id){
+    clearFocus();
+  }
+  audit('delete', `${selected.type}:${selected.id}`, `Deleted ${TYPE_LABELS[selected.type]}`);
+  deleteReq(selected.type, selected.id);
+  selected = null;
+  saveState();
+  renderEditPanel();
+  renderAll();
+  toast('Deleted');
+});
+
+// Add parent / child link
+document.getElementById('ef-parent-select').addEventListener('change', e => {
+  if(!selected || !e.target.value) return;
+  const parentType = PARENT_OF[selected.type];
+  addParent(selected.type, selected.id, parentType, e.target.value);
+  audit('link', `${selected.type}:${selected.id}`, `Linked to parent ${parentType}:${e.target.value}`);
+  saveState();
+  renderEditPanel();
+  renderAll();
+});
+document.getElementById('ef-child-select').addEventListener('change', e => {
+  if(!selected || !e.target.value) return;
+  const childType = CHILD_OF[selected.type];
+  addParent(childType, e.target.value, selected.type, selected.id);
+  audit('link', `${childType}:${e.target.value}`, `Linked to parent ${selected.type}:${selected.id}`);
+  saveState();
+  renderEditPanel();
+  renderAll();
+});
+
+// Comment post
+document.getElementById('ef-comment-add').addEventListener('click', () => {
+  if(!selected) return;
+  const text = document.getElementById('ef-comment-text').value.trim();
+  if(!text){ toast('Comment is empty'); return; }
+  const author = document.getElementById('ef-comment-author').value.trim();
+  // Remember author across comments
+  if(author) localStorage.setItem('atlas360_comment_author', author);
+  const r = state[selected.type][selected.id];
+  if(!Array.isArray(r.comments)) r.comments = [];
+  r.comments.push({text, author: author || '', ts: new Date().toISOString()});
+  r.updatedAt = new Date().toISOString();
+  audit('comment', `${selected.type}:${selected.id}`, `Added comment by ${author || 'Anonymous'}`);
+  saveState();
+  document.getElementById('ef-comment-text').value = '';
+  renderCommentsForSelected();
+  renderAll();
+  toast('Comment posted');
+});
+
+// Panel toggle
+document.getElementById('panel-toggle').addEventListener('click', () => {
+  const p = document.getElementById('panel');
+  p.classList.toggle('collapsed');
+  document.getElementById('panel-toggle').textContent = p.classList.contains('collapsed') ? '›' : '‹';
+});
+
+// Panel resize
+(function setupResize(){
+  const handle = document.getElementById('resize-handle');
+  const panel = document.getElementById('panel');
+  let dragging = false, startX = 0, startW = 0;
+  handle.addEventListener('mousedown', e => {
+    if(panel.classList.contains('collapsed')) return;
+    dragging = true; startX = e.clientX; startW = panel.offsetWidth;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if(!dragging) return;
+    const dx = startX - e.clientX;
+    const w = Math.max(240, Math.min(560, startW + dx));
+    panel.style.width = w + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if(dragging){ dragging = false; handle.classList.remove('dragging'); document.body.style.cursor = ''; }
+  });
+})();
+
+// Clear all
+// Clear all — bound in a dedicated script block right after the toolbar.
+// This stub remains so the comment block is intact, but the binding
+// happens earlier (inline) to insulate it from any later script errors.
+
+/* ========================================================================
+   IMPORT / EXPORT — Excel matching T-0008 template format
+   ------------------------------------------------------------------------
+   Export columns:
+     A: User Need ID    | B: User Need Description
+     C: System Req ID   | D: System Req Description
+     E: Product Req ID  | F: Product Req Description
+     G: Sub-system ID   | H: Sub-system Description
+     I: Design Output / Part #
+
+   Header rows:
+     Row 1: merged group headers (User Need / System Requirement / etc.)
+     Row 2: ID / Description sub-headers
+     Row 3+: data with vertical merging by parent
+
+   Import: reads any rows and reconstructs links by treating a non-empty ID
+   as a definition (uses last-seen parent IDs for trace links).
+   ======================================================================== */
+
+document.getElementById('export-btn').addEventListener('click', exportXlsx);
+document.getElementById('import-btn').addEventListener('click', () => document.getElementById('file-input').click());
+document.getElementById('file-input').addEventListener('change', importXlsx);
+document.getElementById('export-docx-btn').addEventListener('click', exportWord);
+
+// JSON Backup / Restore — full state snapshot, independent of xlsx export
+document.getElementById('backup-btn').addEventListener('click', () => {
+  const snapshot = {
+    schemaVersion: SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    un: state.un,
+    sr: state.sr,
+    pr: state.pr,
+    ss: state.ss,
+    auditLog: state.auditLog,
+  };
+  const blob = new Blob([JSON.stringify(snapshot, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  a.href = url;
+  a.download = `Atlas360_Traceability_backup_${ts}.json`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  toast('Backup downloaded');
+});
+
+document.getElementById('restore-btn').addEventListener('click', () => {
+  document.getElementById('restore-file-input').click();
+});
+document.getElementById('restore-file-input').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  e.target.value = '';
+  if(!confirm('Restoring will replace ALL current data with the backup. Continue?')) return;
+  try{
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if(!data.un || !data.sr || !data.pr || !data.ss){
+      toast('Invalid backup file: missing required sections');
+      return;
+    }
+    state.un = data.un;
+    state.sr = data.sr;
+    state.pr = data.pr;
+    state.ss = data.ss;
+    state.auditLog = Array.isArray(data.auditLog) ? data.auditLog : [];
+    migrateRequirements();
+    audit('restore', '', `Restored from backup (exported ${data.exportedAt || 'unknown'})`);
+    selected = null;
+    if(focusSet) clearFocus();
+    saveState();
+    renderEditPanel();
+    renderAll();
+    const total = Object.keys(state.un).length + Object.keys(state.sr).length + Object.keys(state.pr).length + Object.keys(state.ss).length;
+    toast(`Restored ${total} requirements`);
+  }catch(err){
+    console.error(err);
+    toast('Restore failed: ' + err.message);
+  }
+});
+
+async function exportXlsx(){
+  setSyncBadge('saving');
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Atlas 360 Traceability';
+  wb.created = new Date();
+  const ws = wb.addWorksheet('Traceability Matrix', {
+    views: [{state:'frozen', ySplit:2}]
+  });
+
+  ws.columns = [
+    {key:'unId', width:11},
+    {key:'unDesc', width:32},
+    {key:'srId', width:14},
+    {key:'srDesc', width:32},
+    {key:'prId', width:14},
+    {key:'prDesc', width:32},
+    {key:'ssId', width:14},
+    {key:'ssDesc', width:32},
+    {key:'do', width:24},
+  ];
+
+  // Row 1: group headers
+  ws.getCell('A1').value = 'User Need';
+  ws.getCell('C1').value = 'System Requirement';
+  ws.getCell('E1').value = 'Product Requirement';
+  ws.getCell('G1').value = 'Sub-system Requirement';
+  ws.mergeCells('A1:B1');
+  ws.mergeCells('C1:D1');
+  ws.mergeCells('E1:F1');
+  ws.mergeCells('G1:H1');
+
+  // Row 2: ID / Description
+  ws.getCell('A2').value = 'ID';
+  ws.getCell('B2').value = 'Description';
+  ws.getCell('C2').value = 'ID';
+  ws.getCell('D2').value = 'Description';
+  ws.getCell('E2').value = 'ID';
+  ws.getCell('F2').value = 'Description';
+  ws.getCell('G2').value = 'ID';
+  ws.getCell('H2').value = 'Description';
+  ws.getCell('I2').value = 'Design Output Document/Part Number';
+
+  // Header styling — match T-0008 template (Aptos Narrow, bold, centered, thin border)
+  const headerFont = {name:'Aptos Narrow', size:9, bold:true};
+  const center = {horizontal:'center', vertical:'center', wrapText:true};
+  const thinBorder = {
+    top:{style:'thin', color:{argb:'FF999999'}},
+    left:{style:'thin', color:{argb:'FF999999'}},
+    bottom:{style:'thin', color:{argb:'FF999999'}},
+    right:{style:'thin', color:{argb:'FF999999'}},
+  };
+  ['A1','C1','E1','G1'].forEach(addr => {
+    ws.getCell(addr).font = headerFont;
+    ws.getCell(addr).alignment = center;
+    ws.getCell(addr).border = thinBorder;
+  });
+  for(const col of 'ABCDEFGHI'){
+    const c = ws.getCell(col + '2');
+    c.font = headerFont;
+    c.alignment = center;
+    c.border = thinBorder;
+    c.fill = {type:'pattern', pattern:'solid', fgColor:{argb:'FFF7F8FB'}};
+  }
+  ws.getRow(1).height = 18;
+  ws.getRow(2).height = 18;
+
+  // Data rows
+  const rows = buildRows();
+  let rowIdx = 3;
+  const dataStart = rowIdx;
+
+  // Track ranges for vertical merging
+  const mergeRanges = [];   // {col, startRow, endRow}
+  const seenSpan = { un:null, sr:null, pr:null }; // current span starts
+
+  for(let i=0;i<rows.length;i++){
+    const r = rows[i];
+    const row = ws.getRow(rowIdx);
+    row.getCell(1).value = r.un || '';
+    row.getCell(2).value = r.un ? getDescOf('un', r.un) : '';
+    row.getCell(3).value = r.sr || '';
+    row.getCell(4).value = r.sr ? getDescOf('sr', r.sr) : '';
+    row.getCell(5).value = r.pr || '';
+    row.getCell(6).value = r.pr ? getDescOf('pr', r.pr) : '';
+    row.getCell(7).value = r.ss || '';
+    row.getCell(8).value = r.ss ? getDescOf('ss', r.ss) : '';
+    row.getCell(9).value = (r.ss && state.ss[r.ss]) ? state.ss[r.ss].do || '' : '';
+
+    // Borders + font for all data cells
+    for(let c=1;c<=9;c++){
+      const cell = row.getCell(c);
+      cell.font = {name:'Aptos Narrow', size:9};
+      cell.alignment = {vertical:'top', wrapText:true};
+      cell.border = thinBorder;
+    }
+    // ID columns: monospace-like alignment, centered
+    [1,3,5,7,9].forEach(c => row.getCell(c).alignment = {vertical:'center', horizontal:'left', wrapText:true});
+
+    rowIdx++;
+  }
+
+  // Build vertical merges — for un/sr/pr columns (and their description col) when consecutive rows share id
+  function findMerges(colKeyId, colKeyDesc, rowField){
+    const N = rows.length;
+    let i = 0;
+    while(i < N){
+      const v = rows[i][rowField];
+      if(!v){ i++; continue; }
+      let j = i;
+      while(j+1 < N && rows[j+1][rowField] === v){
+        // Also require ancestors match so we don't merge across different parents
+        if(rowField === 'sr' && rows[j+1].un !== rows[i].un) break;
+        if(rowField === 'pr' && (rows[j+1].un !== rows[i].un || rows[j+1].sr !== rows[i].sr)) break;
+        j++;
+      }
+      if(j > i){
+        const startRow = dataStart + i;
+        const endRow = dataStart + j;
+        try{ ws.mergeCells(colKeyId + startRow + ':' + colKeyId + endRow); }catch(e){}
+        try{ ws.mergeCells(colKeyDesc + startRow + ':' + colKeyDesc + endRow); }catch(e){}
+      }
+      i = j + 1;
+    }
+  }
+  findMerges('A','B','un');
+  findMerges('C','D','sr');
+  findMerges('E','F','pr');
+
+  // Trigger download
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `Atlas360_Traceability_${ts}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  setSyncBadge('saved');
+  toast('Exported .xlsx');
+}
+
+async function importXlsx(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  e.target.value = '';
+  if(!confirm('Importing will replace current data. Continue?')) return;
+
+  setSyncBadge('saving');
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf);
+    const ws = wb.worksheets[0];
+
+    const newState = { un:{}, sr:{}, pr:{}, ss:{} };
+
+    // Detect header row (look for "User Need" + "ID" + "Description" pattern)
+    // We'll assume headers are in rows 1-2 like the template, data starts row 3.
+    // But also handle plain layout where headers are in row 1, data starts row 2.
+    let dataStart = 3;
+    const r1 = ws.getRow(1);
+    const r2 = ws.getRow(2);
+    const r2a = (r2.getCell(1).value || '').toString().toLowerCase();
+    if(r2a !== 'id' && r2a !== ''){ dataStart = 2; }
+
+    // Track current parent IDs as we walk down (because of merged cells, only the
+    // first row of a merge has the value; subsequent rows show empty)
+    let curUn = null, curSr = null, curPr = null;
+
+    const lastRow = ws.lastRow ? ws.lastRow.number : ws.rowCount;
+    for(let r = dataStart; r <= lastRow; r++){
+      const row = ws.getRow(r);
+      const cellVal = (col) => {
+        const v = row.getCell(col).value;
+        if(v == null) return '';
+        if(typeof v === 'object' && v.text) return String(v.text).trim();
+        if(typeof v === 'object' && v.richText) return v.richText.map(rt=>rt.text).join('').trim();
+        return String(v).trim();
+      };
+      const unId = cellVal(1), unDesc = cellVal(2);
+      const srId = cellVal(3), srDesc = cellVal(4);
+      const prId = cellVal(5), prDesc = cellVal(6);
+      const ssId = cellVal(7), ssDesc = cellVal(8);
+      const doVal = cellVal(9);
+
+      // Skip wholly empty rows
+      if(!unId && !srId && !prId && !ssId) continue;
+
+      if(unId){
+        curUn = unId;
+        if(!newState.un[unId]) newState.un[unId] = {id:unId, desc:unDesc || ''};
+        else if(unDesc && !newState.un[unId].desc) newState.un[unId].desc = unDesc;
+      }
+      if(srId){
+        curSr = srId;
+        if(!newState.sr[srId]) newState.sr[srId] = {id:srId, desc:srDesc || '', parents:[]};
+        else if(srDesc && !newState.sr[srId].desc) newState.sr[srId].desc = srDesc;
+        if(curUn && !newState.sr[srId].parents.includes(curUn)) newState.sr[srId].parents.push(curUn);
+      }
+      if(prId){
+        curPr = prId;
+        if(!newState.pr[prId]) newState.pr[prId] = {id:prId, desc:prDesc || '', parents:[]};
+        else if(prDesc && !newState.pr[prId].desc) newState.pr[prId].desc = prDesc;
+        if(curSr && !newState.pr[prId].parents.includes(curSr)) newState.pr[prId].parents.push(curSr);
+      }
+      if(ssId){
+        if(!newState.ss[ssId]) newState.ss[ssId] = {id:ssId, desc:ssDesc || '', parents:[], do: doVal || ''};
+        else{
+          if(ssDesc && !newState.ss[ssId].desc) newState.ss[ssId].desc = ssDesc;
+          if(doVal && !newState.ss[ssId].do) newState.ss[ssId].do = doVal;
+        }
+        if(curPr && !newState.ss[ssId].parents.includes(curPr)) newState.ss[ssId].parents.push(curPr);
+      }
+    }
+
+    // Filter out template placeholder rows (REQ.XXXX)
+    for(const t of ['un','sr','pr','ss']){
+      for(const id of Object.keys(newState[t])){
+        if(/REQ\.X+/i.test(id) || id === 'XXXX-XX'){ delete newState[t][id]; }
+      }
+    }
+
+    state.un = newState.un;
+    state.sr = newState.sr;
+    state.pr = newState.pr;
+    state.ss = newState.ss;
+    migrateRequirements();
+    audit('import', '', `Imported ${Object.keys(state.un).length + Object.keys(state.sr).length + Object.keys(state.pr).length + Object.keys(state.ss).length} requirements from xlsx`);
+    saveState();
+    selected = null;
+    if(focusSet) clearFocus();
+    renderEditPanel();
+    renderAll();
+    const total = Object.keys(state.un).length + Object.keys(state.sr).length + Object.keys(state.pr).length + Object.keys(state.ss).length;
+    toast(`Imported ${total} requirements`);
+  }catch(err){
+    console.error(err);
+    toast('Import failed: ' + err.message);
+    setSyncBadge('err');
+  }
+}
+
+/* ========================================================================
+   WORD EXPORT — three docx files using Contour Medical templates
+   ------------------------------------------------------------------------
+   Generates:
+     1. User Needs doc (CM-000028-FM template) — every UN
+     2. System Requirements doc (CM-000029-FM template) — every SR
+     3. Atlas (Product) Requirements doc (CM-000029-FM template) —
+        every PR whose description starts with "The Atlas"
+   ======================================================================== */
+
+async function exportWord(){
+  if(typeof docx === 'undefined' || typeof saveAs === 'undefined'){
+    toast('Word library failed to load. Check internet connection and try again.');
+    return;
+  }
+  setSyncBadge('saving');
+
+  const {
+    Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+    Header, Footer, AlignmentType, PageOrientation, LevelFormat,
+    HeadingLevel, BorderStyle, WidthType, ShadingType, PageNumber,
+  } = docx;
+
+  // Common styles
+  const FONT = 'Arial';
+  const docStyles = {
+    default: { document: { run: { font: FONT, size: 22 } } },   // 11pt body
+    paragraphStyles: [
+      { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+        run: { size: 28, bold: true, font: FONT },
+        paragraph: { spacing: { before: 320, after: 160 }, outlineLevel: 0 } },
+      { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+        run: { size: 24, bold: true, font: FONT },
+        paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 1 } },
+      { id: 'Heading3', name: 'Heading 3', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+        run: { size: 22, bold: true, font: FONT },
+        paragraph: { spacing: { before: 180, after: 90 }, outlineLevel: 2 } },
+    ],
+  };
+
+  const thinBorder = { style: BorderStyle.SINGLE, size: 4, color: '999999' };
+  const cellBorders = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+  const cellMargins = { top: 80, bottom: 80, left: 120, right: 120 };
+
+  // Helper: bold paragraph
+  const bold = (text, opts={}) => new Paragraph({
+    children: [new TextRun({ text, bold: true, font: FONT, size: opts.size || 22 })],
+    spacing: opts.spacing,
+  });
+  const para = (text, opts={}) => new Paragraph({
+    children: [new TextRun({ text: text || '', font: FONT, size: opts.size || 22 })],
+    spacing: opts.spacing,
+    indent: opts.indent,
+  });
+  const bulletPara = (text) => new Paragraph({
+    numbering: { reference: 'bullets', level: 0 },
+    children: [new TextRun({ text: text || '', font: FONT, size: 22 })],
+  });
+
+  // Cell helper
+  const cell = (text, opts={}) => new TableCell({
+    borders: cellBorders,
+    width: { size: opts.width || 3000, type: WidthType.DXA },
+    shading: opts.shade ? { fill: opts.shade, type: ShadingType.CLEAR } : undefined,
+    margins: cellMargins,
+    children: Array.isArray(text)
+      ? text.map(t => para(t))
+      : [new Paragraph({ children: [new TextRun({ text: text || '', bold: !!opts.bold, font: FONT, size: 22 })] })],
+  });
+
+  // Header banner: 3-column table with Contour Medical | Title | Doc number
+  function buildBanner(title, docNumber){
+    return new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: [2880, 4320, 2160],
+      rows: [
+        new TableRow({ children: [
+          cell('CONTOUR MEDICAL', { bold: true, width: 2880, shade: 'E8EAF0' }),
+          cell(title, { bold: true, width: 4320, shade: 'E8EAF0' }),
+          cell(docNumber, { bold: true, width: 2160, shade: 'E8EAF0' }),
+        ]}),
+        new TableRow({ children: [
+          cell('Owner: Rebecca Crane', { width: 2880 }),
+          cell(title.replace('USER NEEDS', 'User Needs').replace('REQUIREMENTS', 'Requirements') + ' for Atlas 360', { width: 4320 }),
+          cell('Rev: Draft', { width: 2160 }),
+        ]}),
+      ],
+    });
+  }
+
+  // Overview block: Purpose / Scope two-column table
+  function buildOverview(purpose, scope){
+    return [
+      new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'Overview', font: FONT, size: 28, bold: true })] }),
+      new Table({
+        width: { size: 9360, type: WidthType.DXA },
+        columnWidths: [1800, 7560],
+        rows: [
+          new TableRow({ children: [
+            cell('Purpose', { bold: true, width: 1800, shade: 'F0F1F5' }),
+            cell(purpose, { width: 7560 }),
+          ]}),
+          new TableRow({ children: [
+            cell('Scope', { bold: true, width: 1800, shade: 'F0F1F5' }),
+            cell(scope, { width: 7560 }),
+          ]}),
+        ],
+      }),
+    ];
+  }
+
+  // Footer: Doc # | Confidential | Page X of Y
+  function buildFooter(docNumber){
+    return new Footer({ children: [
+      new Table({
+        width: { size: 9360, type: WidthType.DXA },
+        columnWidths: [3120, 3120, 3120],
+        rows: [
+          new TableRow({ children: [
+            cell(docNumber, { width: 3120 }),
+            new TableCell({
+              borders: cellBorders, width: { size: 3120, type: WidthType.DXA }, margins: cellMargins,
+              children: [new Paragraph({ alignment: AlignmentType.CENTER,
+                children: [new TextRun({ text: 'Confidential', bold: true, font: FONT, size: 20 })] })],
+            }),
+            new TableCell({
+              borders: cellBorders, width: { size: 3120, type: WidthType.DXA }, margins: cellMargins,
+              children: [new Paragraph({ alignment: AlignmentType.RIGHT,
+                children: [new TextRun({ text: 'Page ', font: FONT, size: 20 }),
+                  new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 20 }),
+                  new TextRun({ text: ' of ', font: FONT, size: 20 }),
+                  new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 20 })] })],
+            }),
+          ]}),
+        ],
+      }),
+      new Paragraph({ children: [new TextRun({
+        text: 'This document is the property of Contour Medical, Inc., and may not be distributed, disclosed, or used in whole or in part without prior permission.',
+        font: FONT, size: 16, italics: true })],
+        alignment: AlignmentType.CENTER, spacing: { before: 80 } }),
+    ]});
+  }
+
+  // Build a requirement entry: ID + bold title-like ID, then description, then notes if present
+  function buildReqEntries(records, statusFilter){
+    const out = [];
+    const ids = Object.keys(records).sort();
+    for(const id of ids){
+      const r = records[id];
+      const status = (r.status || 'draft');
+      if(statusFilter && !statusFilter.includes(status)) continue;
+
+      // Heading-style line: ID + status badge text + owner
+      out.push(new Paragraph({
+        spacing: { before: 200, after: 60 },
+        children: [
+          new TextRun({ text: id, bold: true, font: FONT, size: 22 }),
+          new TextRun({ text: '   ', font: FONT, size: 22 }),
+          new TextRun({ text: '[' + status.toUpperCase() + ']', font: FONT, size: 18, color: statusColor(status) }),
+          ...(r.workNeeded ? [new TextRun({ text: '  [WORK NEEDED]', font: FONT, size: 18, color: 'D97706', bold: true })] : []),
+          ...(r.owner ? [new TextRun({ text: '   Owner: ' + r.owner, font: FONT, size: 18, color: '6B7280' })] : []),
+        ],
+      }));
+      // Description body
+      const descLines = (r.desc || '(no description)').split(/\n+/);
+      for(const line of descLines){
+        if(line.trim()) out.push(para(line.trim(), { spacing: { after: 60 } }));
+      }
+      // Notes (if any)
+      if(r.notes){
+        out.push(new Paragraph({
+          spacing: { before: 60, after: 60 },
+          indent: { left: 360 },
+          children: [
+            new TextRun({ text: 'Notes: ', italics: true, bold: true, font: FONT, size: 20 }),
+            new TextRun({ text: r.notes, italics: true, font: FONT, size: 20 }),
+          ],
+        }));
+      }
+      // Comments — show counts only, not full thread (keeps export clean)
+      if(r.comments && r.comments.length){
+        out.push(new Paragraph({
+          spacing: { after: 80 },
+          indent: { left: 360 },
+          children: [new TextRun({
+            text: `(${r.comments.length} comment${r.comments.length===1?'':'s'} in tool)`,
+            italics: true, font: FONT, size: 18, color: '8a93a8' })],
+        }));
+      }
+    }
+    if(out.length === 0){
+      out.push(para('(No items.)', { spacing: { after: 60 } }));
+    }
+    return out;
+  }
+
+  function statusColor(status){
+    switch(status){
+      case 'approved': return '16A34A';
+      case 'in-review': return '0891B2';
+      case 'obsolete': return '78716C';
+      default: return '6B7280';   // draft
+    }
+  }
+
+  // Build an array of section objects, one per category that has requirements.
+  // Categories with no matching requirements are omitted entirely so the
+  // output document only shows sections that have content.
+  // Each section header uses the template's section name verbatim.
+  function buildCategorizedSections(records, opts){
+    const opt = opts || {};
+    const TEMPLATE_SECTION_NAMES = {
+      'Functional': 'Functional Requirements',
+      'Performance': 'Performance Requirements',
+      'Mechanical': 'Mechanical Requirements',
+      'Electrical': 'Electrical Requirements',
+      'Environmental': 'Environmental Requirements',
+      'Security': 'Security Requirements',
+      'Interface': 'Interface Requirements',
+      'Manufacturability': 'Manufacturability Requirements',
+      'Serviceability': 'Serviceability and/or Testability Requirements',
+      'Compatibility': 'Compatibility Requirements',
+      'Packaging': 'Packaging Requirements',
+      'Labeling': 'Labeling Requirements',
+      'Regulations': 'Regulations, Standards, and Certifications',
+      'Locales': 'Locales and Languages',
+    };
+    // Bucket records by category
+    const buckets = {};
+    for(const c of REQ_CATEGORIES) buckets[c] = {};
+    for(const id of Object.keys(records)){
+      const r = records[id];
+      const cat = r.category && REQ_CATEGORIES.indexOf(r.category) !== -1
+        ? r.category
+        : autoCategorize(r.desc || '');
+      buckets[cat][id] = r;
+    }
+    // Emit sections in the same order as the template
+    const sections = [];
+    for(const c of REQ_CATEGORIES){
+      const bucket = buckets[c];
+      const count = Object.keys(bucket).length;
+      if(count === 0) continue; // omit empty categories
+      sections.push({
+        heading: TEMPLATE_SECTION_NAMES[c],
+        intro: opt.subhead === 'h2' ? null : null,
+        h2: true,
+        children: buildReqEntries(bucket),
+      });
+    }
+    return sections;
+  }
+
+  // Document factory
+  function buildDoc({ title, docNumber, purpose, scope, sections }){
+    const sectionContent = [
+      buildBanner(title, docNumber),
+      new Paragraph({ children: [new TextRun({ text: '' })], spacing: { after: 120 } }),
+      ...buildOverview(purpose, scope),
+      new Paragraph({ children: [new TextRun({ text: '' })], spacing: { after: 120 } }),
+    ];
+    for(const sec of sections){
+      const headingLevel = sec.h2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_1;
+      const headingSize = sec.h2 ? 26 : 28;
+      sectionContent.push(new Paragraph({
+        heading: headingLevel,
+        children: [new TextRun({ text: sec.heading, font: FONT, size: headingSize, bold: true })],
+      }));
+      if(sec.intro){
+        sectionContent.push(para(sec.intro, { spacing: { after: 120 } }));
+      }
+      sectionContent.push(...sec.children);
+    }
+
+    return new Document({
+      creator: 'Atlas 360 Traceability Tool',
+      title,
+      styles: docStyles,
+      numbering: {
+        config: [{
+          reference: 'bullets',
+          levels: [{ level: 0, format: LevelFormat.BULLET, text: '•', alignment: AlignmentType.LEFT,
+            style: { paragraph: { indent: { left: 720, hanging: 360 } } } }],
+        }],
+      },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1080, right: 1080, bottom: 1440, left: 1080 },
+          },
+        },
+        footers: { default: buildFooter(docNumber) },
+        children: sectionContent,
+      }],
+    });
+  }
+
+  // ---- 1. User Needs document ----
+  const unCount = Object.keys(state.un).length;
+  const unDoc = buildDoc({
+    title: 'USER NEEDS',
+    docNumber: 'CM-XXXXXX-UN',
+    purpose: 'The purpose of this document is to document the needs of the Atlas 360 users. These user needs will be used for product validation of the Atlas 360.',
+    scope: 'This document applies to the Atlas 360 cardiac mapping catheter system.',
+    sections: [
+      { heading: 'User Needs',
+        intro: `This document captures ${unCount} user need${unCount===1?'':'s'} for the Atlas 360 system.`,
+        children: buildReqEntries(state.un) },
+    ],
+  });
+
+  // ---- 2. System Requirements document ----
+  const srCount = Object.keys(state.sr).length;
+  const srSections = [
+    { heading: 'System Requirements',
+      intro: `This document captures ${srCount} system requirement${srCount===1?'':'s'} for the Atlas 360 system. Each requirement traces from one or more user needs and may decompose into one or more product-level requirements (see the Atlas Requirements document). Categories without listed requirements are not applicable to this product.`,
+      children: [] },
+    ...buildCategorizedSections(state.sr),
+  ];
+  const srDoc = buildDoc({
+    title: 'SYSTEM REQUIREMENTS',
+    docNumber: 'CM-XXXXXX-SR',
+    purpose: 'The purpose of this document is to document the system requirements of the Atlas 360.',
+    scope: 'This document applies to the Atlas 360 cardiac mapping catheter system.',
+    sections: srSections,
+  });
+
+  // ---- 3. Atlas (Product) Requirements document ----
+  // Filter: PRs whose description starts with "The Atlas"
+  const atlasPrs = {};
+  for(const id of Object.keys(state.pr)){
+    const desc = (state.pr[id].desc || '').trim().toLowerCase();
+    if(desc.startsWith('the atlas')) atlasPrs[id] = state.pr[id];
+  }
+  const atlasCount = Object.keys(atlasPrs).length;
+  const atlasSections = [
+    { heading: 'Atlas Product Requirements',
+      intro: `This document captures ${atlasCount} product requirement${atlasCount===1?'':'s'} that begin with "The Atlas" and trace from one or more system requirements. Categories without listed requirements are not applicable to this product.`,
+      children: [] },
+    ...buildCategorizedSections(atlasPrs),
+  ];
+  const atlasDoc = buildDoc({
+    title: 'PRODUCT REQUIREMENTS',
+    docNumber: 'CM-XXXXXX-PR',
+    purpose: 'The purpose of this document is to document the product-level requirements for the Atlas catheter assembly.',
+    scope: 'This document applies to the Atlas 360 catheter assembly. Insertion Tool and other component requirements are documented separately.',
+    sections: atlasSections,
+  });
+
+  // Pack and download all three
+  try{
+    const ts = new Date().toISOString().slice(0,10).replace(/-/g, '');
+    const buf1 = await Packer.toBlob(unDoc);
+    saveAs(buf1, `Atlas360_UserNeeds_${ts}.docx`);
+    const buf2 = await Packer.toBlob(srDoc);
+    saveAs(buf2, `Atlas360_SystemRequirements_${ts}.docx`);
+    const buf3 = await Packer.toBlob(atlasDoc);
+    saveAs(buf3, `Atlas360_AtlasRequirements_${ts}.docx`);
+    setSyncBadge('saved');
+    audit('export', '', `Exported 3 Word documents: ${unCount} UN, ${srCount} SR, ${atlasCount} Atlas PR`);
+    saveState();
+    toast(`Exported 3 Word documents (${unCount} UN, ${srCount} SR, ${atlasCount} Atlas PR)`);
+  }catch(err){
+    console.error('Word export failed:', err);
+    toast('Word export failed: ' + err.message);
+    setSyncBadge('err');
+  }
+}
+
+/* ========================================================================
+   TOAST
+   ======================================================================== */
+let toastTimer = null;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ========================================================================
+   INIT
+   ======================================================================== */
+loadState();
+// Pre-fill remembered comment author
+const rememberedAuthor = localStorage.getItem('atlas360_comment_author');
+if(rememberedAuthor){
+  document.getElementById('ef-comment-author').value = rememberedAuthor;
+}
+renderAll();
+renderEditPanel();
+</script>
+</body>
+</html>
