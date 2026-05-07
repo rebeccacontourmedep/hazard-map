@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@9.0.0/build/index.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <title>Atlas 360 Traceability Matrix — Contour Medical</title>
 <style>
 :root{
@@ -63,6 +65,10 @@ tr.bulk-checked td{background:#fef3c7 !important;}
 .fbtn.pr.on{color:var(--pr);border-color:var(--prbd);background:var(--prbg);}
 .fbtn.ss.on{color:var(--ss);border-color:var(--ssbd);background:var(--ssbg);}
 .fbtn.do.on{color:var(--do);border-color:var(--dobd);background:var(--dobg);}
+.fbtn.owner.on{color:#5b21b6;border-color:rgba(91,33,182,.35);background:rgba(91,33,182,.06);}
+.col-owner{background:rgba(91,33,182,.04);}
+.owner-cell{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#5b21b6;font-weight:500;}
+.owner-cell .empty{color:var(--text3);}
 .fbtn.orph.on{color:var(--warn);border-color:var(--warnbd);background:var(--warnbg);}
 .fbtn.work.on{color:#d97706;border-color:rgba(217,119,6,.45);background:rgba(217,119,6,.10);}
 
@@ -294,13 +300,54 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
 ::-webkit-scrollbar-thumb:hover{background:var(--text3);}
+/* Password screen (mirrored from Hazard Map) */
+#pw-screen{position:fixed;inset:0;background:#f2f4f8;display:flex;align-items:center;justify-content:center;z-index:9999;}
+#pw-screen.hidden{display:none;}
+.pw-card{background:#fff;border:1px solid #dde1ea;border-radius:10px;padding:40px 36px;width:360px;box-shadow:0 4px 24px rgba(0,0,0,.08);}
+.pw-logo{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;color:#8a93a8;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px;}
+.pw-title{font-family:'IBM Plex Sans',sans-serif;font-size:20px;font-weight:600;color:#1a1d26;margin-bottom:4px;}
+.pw-sub{font-size:13px;color:#4a5068;margin-bottom:28px;}
+.pw-label{display:block;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:#4a5068;font-family:'IBM Plex Mono',monospace;margin-bottom:6px;}
+.pw-input{width:100%;padding:9px 12px;border:1px solid #dde1ea;border-radius:6px;font-size:14px;font-family:'IBM Plex Sans',sans-serif;color:#1a1d26;outline:none;transition:border-color .15s;box-sizing:border-box;}
+.pw-input:focus{border-color:#2563eb;}
+.pw-btn{width:100%;margin-top:16px;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;transition:background .15s;}
+.pw-btn:hover{background:#1d4ed8;}
+.pw-err{margin-top:10px;font-size:12px;color:#dc2626;display:none;text-align:center;}
+/* Sync badge state colors */
+#sync-badge.live{background:#0891b2;color:#fff;border-color:#0891b2;}
+#sync-badge.connecting{background:#f59e0b;color:#fff;border-color:#d97706;}
+#sync-badge.connected{background:#16a34a;color:#fff;border-color:#15803d;}
+#sync-badge.err{background:#dc2626;color:#fff;border-color:#b91c1c;}
+/* Subtle pulse animation when sync activity happens */
+@keyframes sync-pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+#sync-badge.saving{animation:sync-pulse 1s ease-in-out infinite;}
+/* Edit panel "stale" warning */
+.stale-warn{background:#fef3c7;border:1px solid #f59e0b;color:#92400e;padding:8px 10px;border-radius:5px;font-size:11px;margin-bottom:10px;line-height:1.5;}
+.stale-warn b{font-weight:600;}
+.stale-warn a{color:#92400e;text-decoration:underline;cursor:pointer;font-weight:600;}
 </style>
 </head>
 <body>
 
+<!-- PASSWORD / NAME SCREEN -->
+<div id="pw-screen">
+  <div class="pw-card">
+    <div class="pw-logo">Contour Medical</div>
+    <div class="pw-title">Atlas 360 Traceability Matrix</div>
+    <div class="pw-sub">Enter your name and the team password to continue.</div>
+    <label class="pw-label">Your Name</label>
+    <input class="pw-input" id="pw-name" type="text" placeholder="e.g. Rebecca" onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()" style="margin-bottom:12px;">
+    <label class="pw-label">Password</label>
+    <input class="pw-input" id="pw-input" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')checkPassword()">
+    <button class="pw-btn" onclick="checkPassword()">Continue</button>
+    <div class="pw-err" id="pw-err">Incorrect password. Try again.</div>
+    <div class="pw-err" id="pw-err-name" style="display:none;">Please enter your name.</div>
+  </div>
+</div>
+
 <!-- TOOLBAR -->
 <div class="toolbar">
-  <span class="tbar-title">Atlas 360 Traceability <span style="color:var(--text3);font-weight:400;">build 11</span></span>
+  <span class="tbar-title">Atlas 360 Traceability <span style="color:var(--text3);font-weight:400;">build 15</span></span>
   <button class="btn active" id="view-matrix">Matrix</button>
   <button class="btn" id="view-tree">Hierarchy</button>
   <button class="btn" id="view-graph">Graph</button>
@@ -355,9 +402,15 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
   <button class="fbtn pr on" data-filter="pr">Product Req</button>
   <button class="fbtn ss on" data-filter="ss">Verification</button>
   <button class="fbtn do on" data-filter="do">Design Output</button>
+  <button class="fbtn owner on" data-filter="owner">Owner</button>
   <span class="sep"></span>
   <button class="fbtn orph" data-filter="orphans">Orphans only</button>
   <button class="fbtn work" data-filter="work">Work needed only</button>
+  <span class="sep"></span>
+  <span class="filter-bar-label">Owner</span>
+  <select id="owner-filter" style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);max-width:160px;">
+    <option value="">All owners</option>
+  </select>
   <span class="spacer" style="flex:1;"></span>
   <div class="focus-banner" id="focus-banner">
     <span id="focus-label">Focused on: —</span>
@@ -655,6 +708,8 @@ function saveState(){
   try{
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     setSyncBadge('saved');
+    // Queue a debounced sync to Supabase (no-op if not connected yet)
+    queueSupabaseSync();
   }catch(e){
     console.error('Save failed:', e);
     setSyncBadge('err');
@@ -745,6 +800,46 @@ function refreshOwnerDatalist(){
   if(!dl) return;
   const owners = knownOwners();
   dl.innerHTML = owners.map(o => `<option value="${escapeHtml(o)}"></option>`).join('');
+}
+
+// Populate the Owner filter dropdown in the toolbar with current data values.
+// Preserves the user's current selection if that owner still exists.
+function refreshOwnerFilter(){
+  const sel = document.getElementById('owner-filter');
+  if(!sel) return;
+  const owners = knownOwners();
+  const current = sel.value;
+  const opts = ['<option value="">All owners</option>'];
+  // Group "no owner" near the top since it's a frequent pick
+  // Count records with no owner
+  let noOwnerCount = 0;
+  for(const t of ['un','sr','pr','ss']){
+    for(const id of Object.keys(state[t])){
+      const o = (state[t][id].owner || '').trim();
+      if(!o) noOwnerCount++;
+    }
+  }
+  if(noOwnerCount > 0){
+    opts.push(`<option value="__none__">(no owner) — ${noOwnerCount}</option>`);
+  }
+  for(const o of owners){
+    // Count how many records have this owner across all types
+    let n = 0;
+    for(const t of ['un','sr','pr','ss']){
+      for(const id of Object.keys(state[t])){
+        if((state[t][id].owner || '').trim() === o) n++;
+      }
+    }
+    opts.push(`<option value="${escapeHtml(o)}">${escapeHtml(o)} — ${n}</option>`);
+  }
+  sel.innerHTML = opts.join('');
+  // Restore selection if still valid
+  if(current && (current === '__none__' || owners.includes(current))){
+    sel.value = current;
+  } else {
+    sel.value = '';
+    ownerFilter = '';
+  }
 }
 
 function migrateRequirements(){
@@ -859,8 +954,17 @@ function audit(action, target, detail){
 function setSyncBadge(status){
   const b = document.getElementById('sync-badge');
   b.className = status;
-  b.textContent = status==='saving' ? 'Saving...' : status==='err' ? 'Save error' : 'Local';
-  if(status==='saved'){
+  let txt = 'Local';
+  switch(status){
+    case 'saving': txt = 'Saving...'; break;
+    case 'err': txt = 'Save error'; break;
+    case 'connecting': txt = 'Connecting...'; break;
+    case 'connected': txt = 'Connected'; break;
+    case 'live': txt = 'Live'; break;
+    case 'saved': txt = 'Saved'; break;
+  }
+  b.textContent = txt;
+  if(status === 'saved' || status === 'live'){
     const t = new Date();
     document.getElementById('status-time').textContent = 'Saved ' + t.toLocaleTimeString();
   }
@@ -979,7 +1083,10 @@ function renameReq(type, oldId, newId){
 
 let selected = null;   // {type, id} or null
 let activeView = 'matrix';
-let filterFlags = { un:true, sr:true, pr:true, ss:true, do:true, orphans:false, work:false };
+let filterFlags = { un:true, sr:true, pr:true, ss:true, do:true, owner:true, orphans:false, work:false };
+// Owner filter — '' means show all, '__none__' means show only items with no owner,
+// any other string means show only items where owner === that value
+let ownerFilter = '';
 
 // Bulk select mode state. When bulkMode is true, the matrix shows checkboxes
 // on each row and clicking pills no longer opens the side panel — clicks
@@ -1169,6 +1276,20 @@ function passesFilters(row){
       || (row.ss && state.ss[row.ss] && state.ss[row.ss].workNeeded);
     if(!anyWork) return false;
   }
+  // Owner filter: when active, require at least one populated level on this
+  // row to match the selected owner. '__none__' selects rows where any
+  // populated level has no owner; an actual name requires a string match.
+  if(ownerFilter){
+    const matchOwner = (type, id) => {
+      if(!id || !state[type] || !state[type][id]) return false;
+      const o = (state[type][id].owner || '').trim();
+      if(ownerFilter === '__none__') return o === '';
+      return o === ownerFilter;
+    };
+    const any = matchOwner('un', row.un) || matchOwner('sr', row.sr)
+              || matchOwner('pr', row.pr) || matchOwner('ss', row.ss);
+    if(!any) return false;
+  }
   // Focus mode: every populated level on this row must be in the focus set.
   // A row that has both an in-focus UN and an out-of-focus SR is hidden,
   // because we don't want unrelated siblings appearing under the focused chain.
@@ -1226,14 +1347,19 @@ function renderMatrix(){
   const allLevels = ['un','sr','pr','ss'];
   const activeLevels = allLevels.filter(l => filterFlags[l]);
   const showDo = filterFlags.do;
+  const showOwner = filterFlags.owner;
 
   // Rebuild table headers to reflect visible columns
   const labels = {un:'User Need', sr:'System Requirement', pr:'Product Requirement', ss:'Verification'};
+  const subColsPerLevel = showOwner ? 3 : 2;
   let thead1 = '<tr>';
   let thead2 = '<tr>';
   for(const lv of activeLevels){
-    thead1 += `<th class="col-${lv}" colspan="2">${labels[lv]}</th>`;
+    thead1 += `<th class="col-${lv}" colspan="${subColsPerLevel}">${labels[lv]}</th>`;
     thead2 += `<th class="col-${lv}">ID</th><th class="col-${lv}">Description</th>`;
+    if(showOwner){
+      thead2 += `<th class="col-${lv} col-owner">Owner</th>`;
+    }
   }
   if(showDo){
     thead1 += `<th class="col-do" rowspan="2">Design Output / Part #</th>`;
@@ -1241,7 +1367,7 @@ function renderMatrix(){
   thead1 += '</tr>';
   thead2 += '</tr>';
   thead.innerHTML = thead1 + thead2;
-  const totalCols = activeLevels.length * 2 + (showDo ? 1 : 0);
+  const totalCols = activeLevels.length * subColsPerLevel + (showDo ? 1 : 0);
 
   // Build rows considering ONLY the visible levels — collapse duplicates that
   // arise from hidden levels (e.g. if SS hidden, multiple SS-only-different rows
@@ -1313,6 +1439,9 @@ function renderMatrix(){
       if(sp['skip_'+lv]) continue;
       html += renderIdCell(lv, r[lv], sp[lv], !!r[lv]);
       html += renderDescCell(lv, r[lv], sp[lv]);
+      if(showOwner){
+        html += renderOwnerCell(lv, r[lv], sp[lv]);
+      }
     }
 
     if(showDo){
@@ -1389,6 +1518,18 @@ function renderDescCell(type, id, rowspan){
     return `<td rowspan="${rowspan}"><span class="desc empty">(no description)</span></td>`;
   }
   return `<td rowspan="${rowspan}"><span class="desc">${highlightSearch(desc, searchTerm)}</span></td>`;
+}
+
+function renderOwnerCell(type, id, rowspan){
+  if(!id){
+    return `<td class="col-owner" rowspan="${rowspan}"><span class="owner-cell empty">—</span></td>`;
+  }
+  const r = state[type][id];
+  const owner = (r && r.owner || '').trim();
+  if(!owner){
+    return `<td class="col-owner" rowspan="${rowspan}"><span class="owner-cell empty">—</span></td>`;
+  }
+  return `<td class="col-owner" rowspan="${rowspan}"><span class="owner-cell">${escapeHtml(owner)}</span></td>`;
 }
 
 /* ========================================================================
@@ -2696,6 +2837,7 @@ function renderAll(){
   renderGaps();
   renderAuditLog();
   renderStatus();
+  refreshOwnerFilter();
 }
 
 /* ========================================================================
@@ -2868,6 +3010,12 @@ document.querySelectorAll('.fbtn').forEach(b => {
 // Search
 document.getElementById('search-input').addEventListener('input', e => {
   searchTerm = e.target.value.trim();
+  renderAll();
+});
+
+// Owner filter dropdown
+document.getElementById('owner-filter').addEventListener('change', e => {
+  ownerFilter = e.target.value;
   renderAll();
 });
 
@@ -3180,6 +3328,8 @@ async function exportXlsx(){
     {key:'ssId', width:14},
     {key:'ssDesc', width:32},
     {key:'do', width:24},
+    {key:'owner', width:14},
+    {key:'notes', width:36},
   ];
 
   // Row 1: group headers
@@ -3202,6 +3352,8 @@ async function exportXlsx(){
   ws.getCell('G2').value = 'ID';
   ws.getCell('H2').value = 'Description';
   ws.getCell('I2').value = 'Design Output Document/Part Number';
+  ws.getCell('J2').value = 'Owner';
+  ws.getCell('K2').value = 'Notes';
 
   // Header styling — match T-0008 template (Aptos Narrow, bold, centered, thin border)
   const headerFont = {name:'Aptos Narrow', size:9, bold:true};
@@ -3217,7 +3369,7 @@ async function exportXlsx(){
     ws.getCell(addr).alignment = center;
     ws.getCell(addr).border = thinBorder;
   });
-  for(const col of 'ABCDEFGHI'){
+  for(const col of 'ABCDEFGHIJK'){
     const c = ws.getCell(col + '2');
     c.font = headerFont;
     c.alignment = center;
@@ -3236,6 +3388,25 @@ async function exportXlsx(){
   const mergeRanges = [];   // {col, startRow, endRow}
   const seenSpan = { un:null, sr:null, pr:null }; // current span starts
 
+  // Helper: get owner / notes from the most-specific record on this row.
+  // Priority: ss > pr > sr > un. If multiple levels have values, the
+  // most-specific one wins. This is the "row-defining" level — same as
+  // how the Design Output column works.
+  function rowOwner(r){
+    if(r.ss && state.ss[r.ss] && state.ss[r.ss].owner) return state.ss[r.ss].owner;
+    if(r.pr && state.pr[r.pr] && state.pr[r.pr].owner) return state.pr[r.pr].owner;
+    if(r.sr && state.sr[r.sr] && state.sr[r.sr].owner) return state.sr[r.sr].owner;
+    if(r.un && state.un[r.un] && state.un[r.un].owner) return state.un[r.un].owner;
+    return '';
+  }
+  function rowNotes(r){
+    if(r.ss && state.ss[r.ss] && state.ss[r.ss].notes) return state.ss[r.ss].notes;
+    if(r.pr && state.pr[r.pr] && state.pr[r.pr].notes) return state.pr[r.pr].notes;
+    if(r.sr && state.sr[r.sr] && state.sr[r.sr].notes) return state.sr[r.sr].notes;
+    if(r.un && state.un[r.un] && state.un[r.un].notes) return state.un[r.un].notes;
+    return '';
+  }
+
   for(let i=0;i<rows.length;i++){
     const r = rows[i];
     const row = ws.getRow(rowIdx);
@@ -3248,16 +3419,18 @@ async function exportXlsx(){
     row.getCell(7).value = r.ss || '';
     row.getCell(8).value = r.ss ? getDescOf('ss', r.ss) : '';
     row.getCell(9).value = (r.ss && state.ss[r.ss]) ? state.ss[r.ss].do || '' : '';
+    row.getCell(10).value = rowOwner(r);
+    row.getCell(11).value = rowNotes(r);
 
     // Borders + font for all data cells
-    for(let c=1;c<=9;c++){
+    for(let c=1;c<=11;c++){
       const cell = row.getCell(c);
       cell.font = {name:'Aptos Narrow', size:9};
       cell.alignment = {vertical:'top', wrapText:true};
       cell.border = thinBorder;
     }
     // ID columns: monospace-like alignment, centered
-    [1,3,5,7,9].forEach(c => row.getCell(c).alignment = {vertical:'center', horizontal:'left', wrapText:true});
+    [1,3,5,7,9,10].forEach(c => row.getCell(c).alignment = {vertical:'center', horizontal:'left', wrapText:true});
 
     rowIdx++;
   }
@@ -3347,6 +3520,8 @@ async function importXlsx(e){
       const prId = cellVal(5), prDesc = cellVal(6);
       const ssId = cellVal(7), ssDesc = cellVal(8);
       const doVal = cellVal(9);
+      const ownerVal = cellVal(10);
+      const notesVal = cellVal(11);
 
       // Skip wholly empty rows
       if(!unId && !srId && !prId && !ssId) continue;
@@ -3375,6 +3550,19 @@ async function importXlsx(e){
           if(doVal && !newState.ss[ssId].do) newState.ss[ssId].do = doVal;
         }
         if(curPr && !newState.ss[ssId].parents.includes(curPr)) newState.ss[ssId].parents.push(curPr);
+      }
+
+      // Round-trip Owner and Notes onto the most-specific level on this row.
+      // Mirrors the export logic: SS > PR > SR > UN. We only set if the
+      // record doesn't already have a value, so multi-row records (where the
+      // export wrote the same owner/notes on every row of a span) don't get
+      // overwritten by later iterations of the same group.
+      const targetType = ssId ? 'ss' : prId ? 'pr' : srId ? 'sr' : unId ? 'un' : null;
+      const targetId = ssId || prId || srId || unId;
+      if(targetType && targetId && newState[targetType][targetId]){
+        const rec = newState[targetType][targetId];
+        if(ownerVal && !rec.owner) rec.owner = ownerVal;
+        if(notesVal && !rec.notes) rec.notes = notesVal;
       }
     }
 
@@ -3788,16 +3976,260 @@ function toast(msg){
 }
 
 /* ========================================================================
-   INIT
+   SUPABASE SYNC LAYER
+   ------------------------------------------------------------------------
+   Mirrors the Hazard Map's collaboration model:
+     - One row in the public `diagrams` table, id = DOC_ID, holds the entire
+       state as a JSON blob in `data`.
+     - Realtime channel pushes updates between users; remote changes merge
+       into local state without overwriting an in-progress edit.
+     - Audit entries get persisted to `audit_log` table with user_name stamped.
+     - Password screen gates entry; team password is stored client-side
+       (consistent with the Hazard Map — this is access control, not security).
    ======================================================================== */
-loadState();
-// Pre-fill remembered comment author
-const rememberedAuthor = localStorage.getItem('atlas360_comment_author');
-if(rememberedAuthor){
-  document.getElementById('ef-comment-author').value = rememberedAuthor;
+
+const SUPABASE_URL  = 'https://jcolyqndbznoiwziapwq.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impjb2x5cW5kYnpub2l3emlhcHdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwNzUzMjQsImV4cCI6MjA5MTY1MTMyNH0.LbBYSOprwCExkzVs1tzmXNSFt5xwh99_dlxEowAaQlE';
+const TEAM_PASSWORD = 'Atlas360!';
+const DOC_ID        = 'atlas360-traceability';
+
+let sb = null;
+let currentUser = localStorage.getItem('atlas360_user') || '';
+let supabaseReady = false;
+let lastSyncedHash = '';
+let syncDebounceTimer = null;
+let isApplyingRemote = false;
+const SYNC_DEBOUNCE_MS = 600;
+
+function checkPassword(){
+  const name = document.getElementById('pw-name').value.trim();
+  const val = document.getElementById('pw-input').value;
+  if(!name){
+    const err = document.getElementById('pw-err-name');
+    err.style.display = 'block';
+    document.getElementById('pw-name').focus();
+    setTimeout(() => err.style.display = 'none', 3000);
+    return;
+  }
+  if(val === TEAM_PASSWORD){
+    currentUser = name;
+    localStorage.setItem('atlas360_auth', '1');
+    localStorage.setItem('atlas360_user', name);
+    document.getElementById('pw-screen').classList.add('hidden');
+    initApp();
+  } else {
+    const err = document.getElementById('pw-err');
+    err.style.display = 'block';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+    setTimeout(() => err.style.display = 'none', 3000);
+  }
 }
-renderAll();
-renderEditPanel();
+
+// Auto-login is handled by the INIT block at the very end of this script.
+
+async function initApp(){
+  // Render the local state first (instant feedback) then sync with Supabase
+  loadState();
+  const rememberedAuthor = localStorage.getItem('atlas360_comment_author') || currentUser;
+  if(rememberedAuthor){
+    document.getElementById('ef-comment-author').value = rememberedAuthor;
+  }
+  renderAll();
+  renderEditPanel();
+  // Now connect Supabase and pull latest server state
+  await initSupabase();
+}
+
+async function initSupabase(){
+  if(typeof supabase === 'undefined'){
+    setSyncBadge('err');
+    console.warn('Supabase library not loaded — running in local-only mode');
+    return;
+  }
+  setSyncBadge('connecting');
+  try{
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    await loadFromSupabase();
+    // Subscribe to realtime updates on this row
+    sb.channel('atlas360-traceability-' + DOC_ID).on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'diagrams', filter: `id=eq.${DOC_ID}` },
+      (payload) => handleRemoteUpdate(payload.new)
+    ).subscribe();
+    supabaseReady = true;
+    setSyncBadge('connected');
+    setTimeout(() => setSyncBadge('live'), 1500);
+  }catch(e){
+    console.error('Supabase init failed:', e);
+    setSyncBadge('err');
+  }
+}
+
+async function loadFromSupabase(){
+  try{
+    const { data, error } = await sb.from('diagrams').select('data, updated_at').eq('id', DOC_ID).single();
+    if(error && error.code === 'PGRST116'){
+      // Row doesn't exist yet — create it with current local state
+      const payload = serializeState();
+      await sb.from('diagrams').insert({ id: DOC_ID, data: payload });
+      lastSyncedHash = JSON.stringify(payload);
+      return;
+    }
+    if(error) throw error;
+    if(data && data.data && data.data.un !== undefined){
+      // Server has data — overwrite local with server state
+      isApplyingRemote = true;
+      applyServerState(data.data);
+      lastSyncedHash = JSON.stringify(data.data);
+      isApplyingRemote = false;
+      renderAll();
+      renderEditPanel();
+    } else {
+      // Server row exists but has empty/stale data — push our local state up
+      const payload = serializeState();
+      await sb.from('diagrams').upsert({ id: DOC_ID, data: payload, updated_at: new Date().toISOString() });
+      lastSyncedHash = JSON.stringify(payload);
+    }
+  }catch(e){
+    console.error('Load from Supabase failed:', e);
+    setSyncBadge('err');
+  }
+}
+
+// Flatten the in-memory state into the JSON blob we put in Supabase. We store
+// auditLog separately in the audit_log table, so it's NOT included here —
+// keeps the diagrams row size bounded.
+function serializeState(){
+  return {
+    schemaVersion: state.schemaVersion,
+    un: state.un, sr: state.sr, pr: state.pr, ss: state.ss,
+  };
+}
+
+function applyServerState(s){
+  if(s.un) state.un = s.un;
+  if(s.sr) state.sr = s.sr;
+  if(s.pr) state.pr = s.pr;
+  if(s.ss) state.ss = s.ss;
+  if(s.schemaVersion) state.schemaVersion = s.schemaVersion;
+  // Run migration in case the server has a newer schema or older data
+  migrateRequirements();
+  // Persist to localStorage as a cache so reloads are instant
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+function queueSupabaseSync(){
+  if(!supabaseReady || isApplyingRemote) return;
+  clearTimeout(syncDebounceTimer);
+  syncDebounceTimer = setTimeout(syncToSupabase, SYNC_DEBOUNCE_MS);
+}
+
+async function syncToSupabase(){
+  if(!sb || isApplyingRemote) return;
+  const payload = serializeState();
+  const hash = JSON.stringify(payload);
+  if(hash === lastSyncedHash) return; // nothing changed
+  setSyncBadge('saving');
+  try{
+    const { error } = await sb.from('diagrams').upsert({
+      id: DOC_ID, data: payload, updated_at: new Date().toISOString()
+    });
+    if(error) throw error;
+    lastSyncedHash = hash;
+    setSyncBadge('live');
+  }catch(e){
+    console.error('Sync failed:', e);
+    setSyncBadge('err');
+  }
+}
+
+// Called when another user's update arrives via the realtime channel.
+// Merges remote state in, but preserves whatever the local user is currently
+// editing in the side panel: if the selected requirement was changed by the
+// remote, we surface a "stale" notice in the edit panel rather than blowing
+// away their unsaved input.
+function handleRemoteUpdate(row){
+  if(!row || !row.data) return;
+  const remoteHash = JSON.stringify(row.data);
+  if(remoteHash === lastSyncedHash) return; // we initiated this update — ignore
+  // Capture the in-progress edit (if any) before merging
+  const editInProgress = captureEditInProgress();
+  isApplyingRemote = true;
+  applyServerState(row.data);
+  lastSyncedHash = remoteHash;
+  isApplyingRemote = false;
+  setSyncBadge('live');
+  // Re-render
+  renderAll();
+  // If the user was mid-edit on a record that just changed, mark stale
+  if(editInProgress && editInProgress.recordChanged){
+    showStaleWarning(editInProgress);
+  } else {
+    renderEditPanel();
+  }
+  toast('Updated by teammate');
+}
+
+// Snapshots what the user has typed into the edit panel right now, plus
+// flags whether the in-progress record was just changed in the server data.
+function captureEditInProgress(){
+  if(!selected) return null;
+  const r = state[selected.type] && state[selected.type][selected.id];
+  if(!r) return { selected: { ...selected }, recordChanged: true, deleted: true };
+  const desc = document.getElementById('ef-desc').value;
+  const status = document.getElementById('ef-status').value;
+  const owner = document.getElementById('ef-owner').value;
+  const notes = document.getElementById('ef-notes').value;
+  // Compare against current persisted state
+  const dirty = (desc !== r.desc) || (status !== r.status) || ((r.owner||'') !== owner) || ((r.notes||'') !== notes);
+  return { selected: { ...selected }, dirty, desc, status, owner, notes };
+}
+
+function showStaleWarning(editInProgress){
+  // Find the edit panel and prepend a warning
+  const editPanel = document.getElementById('tab-edit');
+  if(!editPanel) return;
+  // Remove any prior warning
+  const old = editPanel.querySelector('.stale-warn');
+  if(old) old.remove();
+  const warn = document.createElement('div');
+  warn.className = 'stale-warn';
+  warn.innerHTML = '<b>This requirement was just updated by a teammate.</b> Your in-progress edits are still in the form. <a id="stale-refresh">Discard mine and load theirs</a> · <a id="stale-keep">Keep mine and overwrite</a>';
+  editPanel.insertBefore(warn, editPanel.firstChild);
+  document.getElementById('stale-refresh').addEventListener('click', () => {
+    warn.remove();
+    renderEditPanel();
+  });
+  document.getElementById('stale-keep').addEventListener('click', () => {
+    warn.remove();
+    // No-op — their typed values are already in the form. Save will push them up.
+  });
+}
+
+// Wrap audit() to also push to the audit_log table when connected
+const _origAudit = audit;
+audit = function(action, target, detail){
+  _origAudit(action, target, detail);
+  if(supabaseReady && sb && currentUser){
+    sb.from('audit_log').insert({
+      doc_id: DOC_ID,
+      user_name: currentUser,
+      description: `[${action}] ${target ? target + ': ' : ''}${detail || ''}`,
+      created_at: new Date().toISOString(),
+    }).then(({ error }) => { if(error) console.warn('Audit insert failed:', error.message); });
+  }
+};
+
+/* ========================================================================
+   INIT — gated by password screen
+   ======================================================================== */
+if(localStorage.getItem('atlas360_auth') === '1' && localStorage.getItem('atlas360_user')){
+  currentUser = localStorage.getItem('atlas360_user');
+  document.getElementById('pw-screen').classList.add('hidden');
+  initApp();
+}
+// Otherwise the password screen is shown and checkPassword() will trigger initApp.
 </script>
 </body>
 </html>
