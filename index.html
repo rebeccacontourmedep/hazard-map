@@ -2144,6 +2144,32 @@ function doExportExcel(includeNotes){
     }).filter(Boolean);
     const ctrlsForHarm=h=>edges.filter(e=>e.from===h.id).map(e=>nodes.find(n=>n.id===e.to)).filter(n=>n&&n.type==='control');
 
+    // Column widths (used for row-height estimation as well as set on the sheet).
+    // Column I (Risk Control Measures) and J (Verification of Effectiveness)
+    // widened to match column C (38.4) so wrapped content has room to breathe.
+    const colWidths={A:8.7,B:16.3,C:38.4,D:21.4,E:20.9,F:6.1,G:4.7,H:7.6,I:38.4,J:38.4,K:5.0,L:5.9,M:7.0,N:17.0,O:45};
+
+    // Estimate the height (in points) needed to render `text` wrapped inside
+    // a column of width `wch` at 10pt Aptos Narrow. Each visual line ≈ 14 pt.
+    function estimateHeight(text,wch){
+      if(text==null||text==='')return 0;
+      const s=String(text);
+      const charsPerLine=Math.max(1,Math.floor(wch*1.05));  // ~1 char per wch unit at 10pt
+      const lines=s.split('\n');
+      let visualLines=0;
+      for(const ln of lines){
+        if(ln.length===0){visualLines+=1;continue;}
+        visualLines+=Math.ceil(ln.length/charsPerLine);
+      }
+      return visualLines*14;
+    }
+
+    // Track per-row content heights and merge groups.
+    // perRowHeight[r] = min height needed for non-merged cells on row r
+    // mergeGroups = [{startRow, endRow, sequenceHeight, hazardHeight, sitHeight}, ...]
+    const perRowHeight={};
+    const mergeGroups=[];
+
     let row=2;  // data starts on row 2
     let hazIdx=0;
     for(const hz of hazards){
@@ -2153,6 +2179,8 @@ function doExportExcel(includeNotes){
       for(const sit of sits){
         sitIdx++;
         const harms=harmEdgesForSit(sit);
+        if(!harms.length)continue;
+        const sitStartRow=row;
         let isFirstHarmRow=true;
         for(const {harm,occurrence} of harms){
           const ctrls=ctrlsForHarm(harm);
@@ -2163,13 +2191,26 @@ function doExportExcel(includeNotes){
           // Format: {hazIdx}.{sitIdx:03d}  e.g. "1.001", "2.014"
           const idStr=`${hazIdx}.${String(sitIdx).padStart(3,'0')}`;
 
-          // Cells
+          // Harm column: "Harm label - SeverityWord"
+          const harmCell=harm.severity?`${harm.label} - ${severityName(harm.severity)}`:harm.label;
+
+          // Notes column content (computed up-front for height estimation)
+          let notesCell='';
+          if(includeNotes){
+            const noteParts=[];
+            if(sit.notes&&isFirstHarmRow)noteParts.push('Situation: '+sit.notes);
+            if(harm.notes)noteParts.push('Harm: '+harm.notes);
+            const ctrlNotes=ctrls.map(c=>c.notes).filter(Boolean);
+            if(ctrlNotes.length)noteParts.push('Controls: '+ctrlNotes.join(' | '));
+            notesCell=noteParts.join('\n\n');
+          }
+
+          // Cells — A, B, C, D get content only on the first harm row of the situation;
+          // the remaining rows in the situation leave A-D blank (visually merged later).
           setCell(ws,'A'+row,isFirstHarmRow?idStr:'',{font:FONT_DATA,alignment:{vertical:'center'},border:BORDER_THIN});
           setCell(ws,'B'+row,isFirstHarmRow?hz.label:'',{font:FONT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
           setCell(ws,'C'+row,isFirstHarmRow?(sit.sequence||''):'',{font:FONT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
           setCell(ws,'D'+row,isFirstHarmRow?sit.label:'',{font:FONT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
-          // Harm column: "Harm label - SeverityWord"
-          const harmCell=harm.severity?`${harm.label} - ${severityName(harm.severity)}`:harm.label;
           setCell(ws,'E'+row,harmCell,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
           // F = Initial Severity (numeric)
           if(harm.severity!=null)setCell(ws,'F'+row,harm.severity,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
@@ -2195,17 +2236,39 @@ function doExportExcel(includeNotes){
           setCell(ws,'N'+row,harm.assessment||'',{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
           // O = Notes (only if includeNotes)
           if(includeNotes){
-            const noteParts=[];
-            if(sit.notes&&isFirstHarmRow)noteParts.push('Situation: '+sit.notes);
-            if(harm.notes)noteParts.push('Harm: '+harm.notes);
-            const ctrlNotes=ctrls.map(c=>c.notes).filter(Boolean);
-            if(ctrlNotes.length)noteParts.push('Controls: '+ctrlNotes.join(' | '));
-            setCell(ws,'O'+row,noteParts.join('\n\n'),{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+            setCell(ws,'O'+row,notesCell,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
           }
+
+          // Row-height estimation for this row from per-row (non-merged) content.
+          // Cells in the merged A-D block contribute via the merge-group pass below.
+          const perRowCells=[
+            [harmCell,colWidths.E],
+            [ctrlLabels,colWidths.I],
+            [verifications,colWidths.J],
+            [harm.assessment||'',colWidths.N]
+          ];
+          if(includeNotes)perRowCells.push([notesCell,colWidths.O]);
+          let needed=20;  // minimum row height ≈ 20pt for legibility
+          for(const [text,w] of perRowCells){
+            needed=Math.max(needed,estimateHeight(text,w));
+          }
+          perRowHeight[row]=needed;
 
           isFirstHarmRow=false;
           row++;
         }
+        // Record the merge group for this situation
+        const sitEndRow=row-1;
+        const seqText=sit.sequence||'';
+        const sitText=sit.label||'';
+        const hzText=hz.label||'';
+        mergeGroups.push({
+          startRow:sitStartRow,
+          endRow:sitEndRow,
+          sequenceHeight:estimateHeight(seqText,colWidths.C),
+          situationHeight:estimateHeight(sitText,colWidths.D),
+          hazardHeight:estimateHeight(hzText,colWidths.B)
+        });
       }
     }
 
@@ -2216,18 +2279,51 @@ function doExportExcel(includeNotes){
     const lastCol=includeNotes?'O':'N';
     ws['!ref']='A1:'+lastCol+footerRow;
 
-    // Column widths — match template; add O width for notes if present
+    // Column widths — match template, but widen I and J to match C (38.4)
+    // so wrapped Risk Control / Verification content fits without truncation.
     const cols=[
-      {wch:8.7},{wch:16.3},{wch:38.4},{wch:21.4},{wch:20.9},
-      {wch:6.1},{wch:4.7},{wch:7.6},{wch:30.1},{wch:18.6},
-      {wch:5.0},{wch:5.9},{wch:7.0},{wch:17.0}
+      {wch:colWidths.A},{wch:colWidths.B},{wch:colWidths.C},{wch:colWidths.D},{wch:colWidths.E},
+      {wch:colWidths.F},{wch:colWidths.G},{wch:colWidths.H},{wch:colWidths.I},{wch:colWidths.J},
+      {wch:colWidths.K},{wch:colWidths.L},{wch:colWidths.M},{wch:colWidths.N}
     ];
-    if(includeNotes)cols.push({wch:45});
+    if(includeNotes)cols.push({wch:colWidths.O});
     ws['!cols']=cols;
 
-    // Row heights — header row tall to match template (91.5pt), data rows 57.75pt
+    // Apply vertical merges for A-D across each multi-harm situation.
+    // Excel doesn't auto-fit row heights for merged cells, so we also need to
+    // ensure the SUM of row heights in the merged group accommodates the
+    // tallest merged-cell content (typically the sequence in column C).
+    const merges=[];
+    for(const g of mergeGroups){
+      if(g.endRow>g.startRow){
+        // Merge A, B, C, D vertically across [startRow, endRow]
+        for(let col=0;col<4;col++){
+          merges.push({s:{r:g.startRow-1,c:col},e:{r:g.endRow-1,c:col}});
+        }
+      }
+      // Ensure the row group can fit the merged content. Take the tallest of
+      // the three merged-cell heights, then make sure the SUM of row heights
+      // in the group is at least that value. If not, top up the first row.
+      const mergedMax=Math.max(g.sequenceHeight,g.situationHeight,g.hazardHeight);
+      const rowsInGroup=g.endRow-g.startRow+1;
+      let groupSum=0;
+      for(let r=g.startRow;r<=g.endRow;r++)groupSum+=perRowHeight[r]||0;
+      if(mergedMax>groupSum){
+        // Distribute the deficit evenly across the rows in the group
+        const deficit=mergedMax-groupSum;
+        const perRowBump=Math.ceil(deficit/rowsInGroup);
+        for(let r=g.startRow;r<=g.endRow;r++){
+          perRowHeight[r]=(perRowHeight[r]||0)+perRowBump;
+        }
+      }
+    }
+    ws['!merges']=merges;
+
+    // Row heights — header row tall (91.5pt), data rows sized to fit content
     const rowHeights=[{hpt:91.5}];
-    for(let i=2;i<=row-1;i++)rowHeights.push({hpt:57.75});
+    for(let r=2;r<=row-1;r++){
+      rowHeights.push({hpt:Math.max(20,perRowHeight[r]||20)});
+    }
     ws['!rows']=rowHeights;
 
     return ws;
