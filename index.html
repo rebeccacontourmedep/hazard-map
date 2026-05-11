@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <title>Atlas 360 Hazard Map — Contour Medical</title>
 <style>
 :root{
@@ -164,6 +166,17 @@ table.cvg tr:hover td{background:var(--surface2);}
 .toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#1a1d26;color:#fff;font-size:12px;padding:6px 14px;border-radius:20px;pointer-events:none;opacity:0;transition:opacity .2s;z-index:200;white-space:nowrap;}
 .toast.show{opacity:1;}
 
+/* export modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(26,29,38,.45);display:none;align-items:center;justify-content:center;z-index:500;}
+.modal-backdrop.show{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:18px 20px;box-shadow:0 10px 32px rgba(0,0,0,.18);min-width:320px;max-width:400px;font-family:'IBM Plex Sans',sans-serif;}
+.modal-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:6px;}
+.modal-msg{font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:14px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+.modal-actions .btn{padding:5px 12px;font-size:12px;}
+.modal-actions .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.modal-actions .btn.primary:hover{background:#1e4fbf;}
+
 /* status bar */
 .status-bar{padding:2px 12px;background:var(--surface);border-top:1px solid var(--border);font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;flex-shrink:0;display:flex;gap:12px;align-items:center;}
 .undo-hint{margin-left:auto;font-size:10px;color:var(--text3);}
@@ -311,11 +324,11 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
   <button class="btn" onclick="autoLayout()">Layout</button>
   <button class="btn btn-swimlane" id="swimlane-btn" onclick="toggleSwimlane()" title="Toggle swimlane view">Swimlane</button>
   <div class="sep"></div>
-  <button class="btn" onclick="exportJSON()">Export</button>
-  <button class="btn" onclick="triggerImport()">Import</button>
-  <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+  <button class="btn" onclick="doBackup()" title="Save a JSON snapshot you can restore later">Backup</button>
+  <button class="btn" onclick="triggerRestore()" title="Load a JSON snapshot saved with Backup">Restore</button>
+  <input type="file" id="restore-file" accept=".json" style="display:none" onchange="doRestore(event)">
+  <button class="btn" onclick="openExportModal()" title="Export to CM-000036-FM Hazard Analysis Template">Export</button>
   <div class="sep"></div>
-  <button class="btn" onclick="clearAll()">Clear</button>
   <button class="btn" onclick="loadSample()" title="Load Atlas 360 starter data">Example</button>
   <div class="sep"></div>
   <span id="sync-badge" title="Cloud sync status">Connecting…</span>
@@ -521,6 +534,19 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 <canvas id="minimap" class="minimap" width="140" height="90"></canvas>
 
 <div class="toast" id="toast"></div>
+
+<!-- Export options modal -->
+<div class="modal-backdrop" id="export-modal" onclick="if(event.target===this)closeExportModal()">
+  <div class="modal" role="dialog" aria-labelledby="export-modal-title">
+    <div class="modal-title" id="export-modal-title">Export to Excel (CM-000036-FM)</div>
+    <div class="modal-msg">Exports to the Hazard Analysis Template format. The clean version matches CM-000036-FM exactly. The "With Notes" version adds an extra Notes / References column capturing UN-/REQ-/SOP references and rationale from situation, harm, and control nodes.</div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeExportModal()">Cancel</button>
+      <button class="btn primary" onclick="doExportExcel(false)">Clean (template format)</button>
+      <button class="btn" onclick="doExportExcel(true)">With Notes</button>
+    </div>
+  </div>
+</div>
 
 <div class="status-bar">
   <span id="st-nodes">0 nodes</span>
@@ -1836,23 +1862,407 @@ function autoLayout(){
   fitScreen();
 }
 
-function clearAll(){
-  if(!nodes.length||confirm('Clear all nodes and connections?')){
-    pushUndo();nodes=[];edges=[];selected=null;selEdge=null;clearFocus();closeEdgePopup();
-    document.getElementById('edit-panel').style.display='none';updAll();draw();
-    scheduleSave();
-  }
+// ── Save / Load ────────────────────────────────────────────────────
+// Export → Excel (.xlsx) in CM-000036-FM Hazard Analysis Template format.
+// Two options: "Clean" (matches template exactly) or "With Notes"
+// (adds an extra Notes column capturing UN-/REQ-/SOP references and rationale
+// from situation, harm, and control nodes for each row).
+function openExportModal(){
+  if(!nodes.length){toast('Nothing to export');return;}
+  document.getElementById('export-modal').classList.add('show');
+}
+function closeExportModal(){
+  document.getElementById('export-modal').classList.remove('show');
 }
 
-// ── Save / Load ────────────────────────────────────────────────────
-function exportJSON(){
+// Severity descriptor for the Harms Glossary CONCATENATE convention
+function severityName(s){
+  return {1:'Negligible',2:'Minor',3:'Moderate',4:'Serious',5:'Catastrophic'}[s]||'';
+}
+function occurrenceName(o){
+  return {1:'Improbable',2:'Remote',3:'Occasional',4:'Common',5:'Frequent'}[o]||'';
+}
+
+// Risk classification matrix per Risk Tables sheet (SOP-0003).
+// RM[occurrence-1][severity-1] = Zone (1, 2, or 3).
+const CM_RM=[
+  [1,1,1,1,2],  // Occurrence 1 (Improbable)
+  [1,1,1,2,2],  // Occurrence 2 (Remote)
+  [1,1,2,2,3],  // Occurrence 3 (Occasional)
+  [1,2,2,3,3],  // Occurrence 4 (Common)
+  [2,2,3,3,3]   // Occurrence 5 (Frequent)
+];
+
+// Build the nested-IF risk classification formula matching the template pattern
+// but with the correct RM matrix (one cell in the template has a transcription
+// error: F=3,G=5 returns 1 but Risk Tables shows 3). We emit the corrected map.
+function riskClassFormula(sevCol,occCol,row){
+  const parts=[];
+  for(let s=1;s<=5;s++){
+    for(let o=1;o<=5;o++){
+      const z=CM_RM[o-1][s-1];
+      parts.push(`AND(${sevCol}${row}=${s},${occCol}${row}=${o}),${z}`);
+    }
+  }
+  // Build nested IFs:  IF(AND(...),Z, IF(AND(...),Z, ... IF(AND(F=5,G=5),3) ))
+  let f='';
+  for(let i=0;i<parts.length;i++) f+=`IF(${parts[i]},`;
+  // close all but the last; the last needs a final close-paren matching its IF
+  f=f.slice(0,-1)+')'.repeat(parts.length);
+  return '='+f;
+}
+
+function doExportExcel(includeNotes){
+  closeExportModal();
+  if(typeof XLSX==='undefined'){alert('Excel library failed to load. Check your network connection and try again.');return;}
+
+  // ── Style presets matching CM-000036-FM ─────────────────────────
+  const FONT_HDR={name:'Aptos Narrow',sz:9,bold:true};
+  const FONT_DATA={name:'Aptos Narrow',sz:10};
+  const FONT_GLOSSARY_HDR={name:'Aptos',sz:11,bold:true,color:{rgb:'FF000000'}};
+  const FONT_GLOSSARY_DATA={name:'Aptos Narrow',sz:11};
+  const FONT_RT_HDR={name:'Aptos',sz:11,bold:true,color:{rgb:'FF000000'}};
+  const FONT_RT_DATA={name:'Aptos',sz:11};
+  const FONT_INST={name:'Aptos',sz:11};
+  const FILL_HDR_BLUE={patternType:'solid',fgColor:{rgb:'FFD1D9E7'}};
+  const FILL_Z1={patternType:'solid',fgColor:{rgb:'FF65CB41'}};
+  const FILL_Z2={patternType:'solid',fgColor:{rgb:'FFFFFF00'}};
+  const FILL_Z3={patternType:'solid',fgColor:{rgb:'FFFF2D2D'}};
+  const BORDER_THIN={
+    top:{style:'thin',color:{rgb:'FF000000'}},
+    bottom:{style:'thin',color:{rgb:'FF000000'}},
+    left:{style:'thin',color:{rgb:'FF000000'}},
+    right:{style:'thin',color:{rgb:'FF000000'}}
+  };
+
+  // Helper to set a cell with value, type, and style
+  function setCell(ws,addr,value,style,formula){
+    if(formula){
+      ws[addr]={t:'n',f:formula.slice(1),v:''};  // strip leading '='
+    }else if(value===null||value===undefined||value===''){
+      ws[addr]={t:'s',v:''};
+    }else if(typeof value==='number'){
+      ws[addr]={t:'n',v:value};
+    }else{
+      ws[addr]={t:'s',v:String(value)};
+    }
+    if(style)ws[addr].s=style;
+  }
+
+  // Helper to extend the sheet's range
+  function extendRange(ws,r,c){
+    const cur=ws['!ref']?XLSX.utils.decode_range(ws['!ref']):{s:{r:0,c:0},e:{r:0,c:0}};
+    cur.e.r=Math.max(cur.e.r,r);cur.e.c=Math.max(cur.e.c,c);
+    ws['!ref']=XLSX.utils.encode_range(cur);
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SHEET 1: Template Instructions
+  // ════════════════════════════════════════════════════════════════
+  function buildInstructionsSheet(){
+    const ws={};
+    const lines=[
+      '(Delete this tab before release of the Hazard Analysis.)',
+      '1. Create list of foreseeable harms for the device, i.e. inflammation, tissue damage, embolism, sepsis, etc.',
+      '2. Use the Harms Glossary when identifying the potential harm that results from the hazardous situation.',
+      "3. Reference the tables from SOP-0003 on the tab 'Risk Tables' throughout the hazard analysis exercise.",
+      '4. The Hazard Assessment tab may be split into separate tabs for easier navigation by hazard category or device function.'
+    ];
+    lines.forEach((line,i)=>{
+      const addr='A'+(i+1);
+      const isItalic=i===0;
+      ws[addr]={t:'s',v:line,s:{font:{...FONT_INST,italic:isItalic},alignment:{wrapText:true,vertical:'top'}}};
+    });
+    ws['!ref']='A1:A'+lines.length;
+    ws['!cols']=[{wch:144}];
+    return ws;
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SHEET 2: Risk Tables (from SOP-0003)
+  // ════════════════════════════════════════════════════════════════
+  function buildRiskTablesSheet(){
+    const ws={};
+    // Title row
+    setCell(ws,'A1','Tables below are from SOP-0003 and are provided for reference.',{font:{name:'Aptos Narrow',sz:12}});
+    // Table 1 header
+    setCell(ws,'A3','Table 1: Likelihood of Occurrence Levels',{font:FONT_RT_HDR,alignment:{horizontal:'left',vertical:'center'}});
+    setCell(ws,'E3','Table 2: Harm Severity Levels',{font:FONT_RT_HDR,alignment:{horizontal:'left',vertical:'center'}});
+    // Table 1 column headers
+    ['A4|Occurrence Level','B4|Qualitative Definition','C4|Likelihood of Occurrence'].forEach(p=>{
+      const [a,v]=p.split('|');
+      setCell(ws,a,v,{font:FONT_RT_HDR,fill:FILL_HDR_BLUE,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+    });
+    // Table 2 column headers
+    ['E4|Severity','F4|Level','G4|Definition'].forEach(p=>{
+      const [a,v]=p.split('|');
+      setCell(ws,a,v,{font:FONT_RT_HDR,fill:FILL_HDR_BLUE,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+    });
+    // Table 1 data rows
+    const occData=[
+      ['Improbable','Harm is unlikely to occur during the life of the product or in the entire production volume.',1],
+      ['Remote','Harm is unlikely to occur during the life of the product under intended use conditions; statistical analysis or use history shows that the event is uncommon.',2],
+      ['Occasional','Harm may occur during the life of the product for each patient under intended use conditions.',3],
+      ['Common','Harm is likely to occur during the life of the product for each patient under intended use conditions.',4],
+      ['Frequent','Harm is likely to occur multiple times during the life of the product for each patient under intended use conditions.',5]
+    ];
+    // Table 2 data rows
+    const sevData=[
+      [1,'Negligible','Inconvenience or temporary discomfort'],
+      [2,'Minor','Minor injury to the patient or user leading to temporary injury or impairment that does not require professional medical intervention.'],
+      [3,'Moderate','Injury to the patient or user requiring medical or surgical treatment or intervention.'],
+      [4,'Serious','Permanent impairment, life-threatening injury or medical condition, or medical or surgical intervention required to prevent permanent impairment to body structure or function.'],
+      [5,'Catastrophic','Fatality to the patient or user, or catastrophic property or environmental damage.']
+    ];
+    occData.forEach((row,i)=>{
+      const r=5+i;
+      setCell(ws,'A'+r,row[0],{font:FONT_RT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+      setCell(ws,'B'+r,row[1],{font:FONT_RT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+      setCell(ws,'C'+r,row[2],{font:FONT_RT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+    });
+    sevData.forEach((row,i)=>{
+      const r=5+i;
+      setCell(ws,'E'+r,row[0],{font:FONT_RT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+      setCell(ws,'F'+r,row[1],{font:FONT_RT_DATA,alignment:{vertical:'center'},border:BORDER_THIN});
+      setCell(ws,'G'+r,row[2],{font:FONT_RT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+    });
+    // Table 3: Risk Classification matrix
+    setCell(ws,'A12','Table 3: Risk Classification Table',{font:FONT_RT_HDR,alignment:{horizontal:'left',vertical:'center'}});
+    // Header: severity columns
+    setCell(ws,'C13','Severity',{font:FONT_RT_HDR,fill:FILL_HDR_BLUE,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+    const sevHdrs=['Negligible (1)','Minor (2)','Moderate (3)','Serious (4)','Catastrophic (5)'];
+    sevHdrs.forEach((h,i)=>{
+      const col=String.fromCharCode('C'.charCodeAt(0)+i);
+      setCell(ws,col+'14',h,{font:FONT_RT_HDR,fill:FILL_HDR_BLUE,alignment:{horizontal:'center',vertical:'center',wrapText:true},border:BORDER_THIN});
+    });
+    setCell(ws,'A15','Occurrence Levels',{font:FONT_RT_HDR,fill:FILL_HDR_BLUE,alignment:{horizontal:'center',vertical:'center',wrapText:true},border:BORDER_THIN});
+    const occHdrs=['Frequent (5)','Common (4)','Occasional (3)','Remote (2)','Improbable (1)'];
+    const occOrder=[5,4,3,2,1];  // top to bottom
+    occHdrs.forEach((h,i)=>{
+      const r=15+i;
+      setCell(ws,'B'+r,h,{font:FONT_RT_HDR,fill:FILL_HDR_BLUE,alignment:{horizontal:'center',vertical:'center',wrapText:true},border:BORDER_THIN});
+      // Zone cells
+      const o=occOrder[i];
+      for(let s=1;s<=5;s++){
+        const col=String.fromCharCode('C'.charCodeAt(0)+(s-1));
+        const z=CM_RM[o-1][s-1];
+        const fill=z===1?FILL_Z1:z===2?FILL_Z2:FILL_Z3;
+        setCell(ws,col+r,'Zone '+z,{font:FONT_RT_HDR,fill:fill,alignment:{horizontal:'center',vertical:'center',wrapText:true},border:BORDER_THIN});
+      }
+    });
+    ws['!ref']='A1:G20';
+    ws['!cols']=[
+      {wch:20.7},{wch:45.3},{wch:26.3},{wch:13.0},{wch:25.7},{wch:19.3},{wch:49.9}
+    ];
+    ws['!rows']=[
+      undefined,undefined,undefined,undefined,
+      {hpt:60},{hpt:75},{hpt:59.25},{hpt:133.5},{hpt:78},
+      undefined,undefined,undefined,undefined,undefined,
+      undefined,undefined,undefined,undefined,undefined
+    ];
+    // Merges from the template (A13:B14, A15:A19, C13:G13, B23-26)
+    ws['!merges']=[
+      {s:{r:12,c:0},e:{r:13,c:1}},   // A13:B14
+      {s:{r:14,c:0},e:{r:18,c:0}},   // A15:A19
+      {s:{r:12,c:2},e:{r:12,c:6}}    // C13:G13
+    ];
+    return ws;
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SHEET 3: Harms Glossary — populated from harm nodes
+  // ════════════════════════════════════════════════════════════════
+  function buildHarmsGlossarySheet(){
+    const ws={};
+    const headers=['Harm - Criticality','Harm','Criticality','Harm Definition','Severity'];
+    headers.forEach((h,i)=>{
+      const col=String.fromCharCode('A'.charCodeAt(0)+i);
+      const align=i===4?{horizontal:'center',vertical:'center',wrapText:true}:{vertical:'center',wrapText:true};
+      setCell(ws,col+'1',h,{font:FONT_GLOSSARY_HDR,fill:FILL_HDR_BLUE,alignment:align,border:BORDER_THIN});
+    });
+    // Collect unique harms (by label + severity)
+    const harmNodes=nodes.filter(n=>n.type==='harm');
+    const seen=new Set();
+    const uniqHarms=[];
+    harmNodes.forEach(h=>{
+      const sev=h.severity;
+      const key=h.label+'|'+sev;
+      if(seen.has(key))return;
+      seen.add(key);
+      uniqHarms.push({label:h.label,severity:sev,notes:h.notes||''});
+    });
+    // Sort by label, then severity
+    uniqHarms.sort((a,b)=>a.label.localeCompare(b.label)||(a.severity||0)-(b.severity||0));
+    uniqHarms.forEach((h,i)=>{
+      const r=i+2;
+      // Column A: =CONCATENATE(B&" - ",C)
+      ws['A'+r]={t:'s',f:`CONCATENATE(B${r}&" - ",C${r})`,v:'',s:{font:{name:'Aptos Display',sz:11},alignment:{vertical:'center',wrapText:true},border:BORDER_THIN}};
+      setCell(ws,'B'+r,h.label,{font:FONT_GLOSSARY_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+      setCell(ws,'C'+r,severityName(h.severity),{font:FONT_GLOSSARY_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+      // D = use the harm's notes as the definition if available, else blank
+      setCell(ws,'D'+r,h.notes||'',{font:FONT_GLOSSARY_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+      if(h.severity){
+        setCell(ws,'E'+r,h.severity,{font:FONT_GLOSSARY_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+      }else{
+        setCell(ws,'E'+r,'',{font:FONT_GLOSSARY_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+      }
+    });
+    const lastRow=Math.max(2,1+uniqHarms.length);
+    ws['!ref']='A1:E'+lastRow;
+    ws['!cols']=[{wch:25.6},{wch:14.4},{wch:13.1},{wch:56.1},{wch:18.6}];
+    ws['!rows']=[undefined].concat(uniqHarms.map(()=>({hpt:30})));
+    return ws;
+  }
+
+  // ════════════════════════════════════════════════════════════════
+  // SHEET 4: Hazard Assessment — main data sheet, populated from diagram
+  // ════════════════════════════════════════════════════════════════
+  function buildHazardAssessmentSheet(){
+    const ws={};
+
+    // Headers (row 1) — A through N, optional O for Notes
+    const headers=['ID','Hazard','Sequence of Events Leading to Hazardous Situation',
+      'Hazardous Situation','Harm','Initial Severity','Initial Occurrence',
+      'Initial Risk Classification','Risk Control Measures','Verification of Effectiveness',
+      'Post Severity','Post Occurrence','Post Risk Classification','Post-Mitigation Assessment'];
+    if(includeNotes)headers.push('Notes / References');
+    headers.forEach((h,i)=>{
+      const col=XLSX.utils.encode_col(i);
+      // Centered headers for the numeric/formula columns (F, G, H, I, N, optional O)
+      const centerHdrs=new Set([5,6,7,8,13,14]);
+      const align=centerHdrs.has(i)?{horizontal:'center',vertical:'center',wrapText:true}:{vertical:'center',wrapText:true};
+      setCell(ws,col+'1',h,{font:FONT_HDR,alignment:align,border:BORDER_THIN});
+    });
+
+    // Build rows from the diagram.
+    // Group by hazard → situation; emit one row per Situation→Harm edge.
+    const hazards=nodes.filter(n=>n.type==='hazard').sort((a,b)=>a.id-b.id);
+    const sitsForHazard=h=>edges.filter(e=>e.from===h.id).map(e=>nodes.find(n=>n.id===e.to)).filter(n=>n&&n.type==='situation');
+    const harmEdgesForSit=s=>edges.filter(e=>e.from===s.id).map(e=>{
+      const harm=nodes.find(n=>n.id===e.to);
+      return harm&&harm.type==='harm'?{harm,occurrence:e.occurrence}:null;
+    }).filter(Boolean);
+    const ctrlsForHarm=h=>edges.filter(e=>e.from===h.id).map(e=>nodes.find(n=>n.id===e.to)).filter(n=>n&&n.type==='control');
+
+    let row=2;  // data starts on row 2
+    let hazIdx=0;
+    for(const hz of hazards){
+      hazIdx++;
+      const sits=sitsForHazard(hz);
+      let sitIdx=0;
+      for(const sit of sits){
+        sitIdx++;
+        const harms=harmEdgesForSit(sit);
+        let isFirstHarmRow=true;
+        for(const {harm,occurrence} of harms){
+          const ctrls=ctrlsForHarm(harm);
+          const ctrlLabels=ctrls.map(c=>c.label).filter(Boolean).join('\n\n');
+          const verifications=ctrls.map(c=>c.verification).filter(Boolean).join('\n\n');
+
+          // ID column: per-situation (blank on continuation rows, matching template).
+          // Format: {hazIdx}.{sitIdx:03d}  e.g. "1.001", "2.014"
+          const idStr=`${hazIdx}.${String(sitIdx).padStart(3,'0')}`;
+
+          // Cells
+          setCell(ws,'A'+row,isFirstHarmRow?idStr:'',{font:FONT_DATA,alignment:{vertical:'center'},border:BORDER_THIN});
+          setCell(ws,'B'+row,isFirstHarmRow?hz.label:'',{font:FONT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+          setCell(ws,'C'+row,isFirstHarmRow?(sit.sequence||''):'',{font:FONT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+          setCell(ws,'D'+row,isFirstHarmRow?sit.label:'',{font:FONT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+          // Harm column: "Harm label - SeverityWord"
+          const harmCell=harm.severity?`${harm.label} - ${severityName(harm.severity)}`:harm.label;
+          setCell(ws,'E'+row,harmCell,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+          // F = Initial Severity (numeric)
+          if(harm.severity!=null)setCell(ws,'F'+row,harm.severity,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+          else setCell(ws,'F'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+          // G = Initial Occurrence (numeric, from the edge)
+          if(occurrence!=null)setCell(ws,'G'+row,occurrence,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+          else setCell(ws,'G'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+          // H = Initial Risk Classification (formula)
+          setCell(ws,'H'+row,null,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN},riskClassFormula('F','G',row));
+          // I = Risk Control Measures
+          setCell(ws,'I'+row,ctrlLabels,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+          // J = Verification of Effectiveness
+          setCell(ws,'J'+row,verifications,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+          // K = Post Severity
+          if(harm.postSeverity!=null)setCell(ws,'K'+row,harm.postSeverity,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+          else setCell(ws,'K'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+          // L = Post Occurrence
+          if(harm.postOccurrence!=null)setCell(ws,'L'+row,harm.postOccurrence,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+          else setCell(ws,'L'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+          // M = Post Risk Classification (formula)
+          setCell(ws,'M'+row,null,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN},riskClassFormula('K','L',row));
+          // N = Post-Mitigation Assessment
+          setCell(ws,'N'+row,harm.assessment||'',{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+          // O = Notes (only if includeNotes)
+          if(includeNotes){
+            const noteParts=[];
+            if(sit.notes&&isFirstHarmRow)noteParts.push('Situation: '+sit.notes);
+            if(harm.notes)noteParts.push('Harm: '+harm.notes);
+            const ctrlNotes=ctrls.map(c=>c.notes).filter(Boolean);
+            if(ctrlNotes.length)noteParts.push('Controls: '+ctrlNotes.join(' | '));
+            setCell(ws,'O'+row,noteParts.join('\n\n'),{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+          }
+
+          isFirstHarmRow=false;
+          row++;
+        }
+      }
+    }
+
+    // Footer note matching template row 15 ("Note: Columns I and M are Auto-populated...")
+    const footerRow=row+1;
+    setCell(ws,'A'+footerRow,'Note: Columns H and M are Auto-populated based on numbers entered into Severity and Occurrence Columns.',{font:FONT_DATA,alignment:{horizontal:'left'}});
+
+    const lastCol=includeNotes?'O':'N';
+    ws['!ref']='A1:'+lastCol+footerRow;
+
+    // Column widths — match template; add O width for notes if present
+    const cols=[
+      {wch:8.7},{wch:16.3},{wch:38.4},{wch:21.4},{wch:20.9},
+      {wch:6.1},{wch:4.7},{wch:7.6},{wch:30.1},{wch:18.6},
+      {wch:5.0},{wch:5.9},{wch:7.0},{wch:17.0}
+    ];
+    if(includeNotes)cols.push({wch:45});
+    ws['!cols']=cols;
+
+    // Row heights — header row tall to match template (91.5pt), data rows 57.75pt
+    const rowHeights=[{hpt:91.5}];
+    for(let i=2;i<=row-1;i++)rowHeights.push({hpt:57.75});
+    ws['!rows']=rowHeights;
+
+    return ws;
+  }
+
+  // ── Assemble workbook ──────────────────────────────────────────
+  const wb=XLSX.utils.book_new();
+  wb.Props={
+    Title:'Hazard Analysis',
+    Subject:'CM-000036-FM Hazard Analysis',
+    Application:'Atlas 360 Hazard Map'
+  };
+  XLSX.utils.book_append_sheet(wb,buildInstructionsSheet(),'Template Instructions');
+  XLSX.utils.book_append_sheet(wb,buildRiskTablesSheet(),'Risk Tables');
+  XLSX.utils.book_append_sheet(wb,buildHarmsGlossarySheet(),'Harms Glossary');
+  XLSX.utils.book_append_sheet(wb,buildHazardAssessmentSheet(),'Hazard Assessment');
+
+  const stamp=new Date().toISOString().slice(0,10);
+  const suffix=includeNotes?'_with_notes':'_clean';
+  XLSX.writeFile(wb,'Hazard_Analysis_'+stamp+suffix+'.xlsx');
+  toast('Exported '+(includeNotes?'with notes':'clean (template format)'));
+}
+// ── Backup / Restore (JSON snapshot — round-trips with Restore) ────
+// Saves the full diagram state to a JSON file the user can re-load later
+// via Restore. Separate from Export, which produces a regulatory Excel file
+// in the CM-000036-FM Hazard Analysis Template format.
+function doBackup(){
+  if(!nodes.length){toast('Nothing to back up');return;}
   const blob=new Blob([JSON.stringify({nodes,edges},null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='hazard_analysis_'+new Date().toISOString().slice(0,10)+'.json';a.click();
-  toast('Exported');
+  a.download='hazard_map_backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  toast('Backup saved');
 }
-function triggerImport(){document.getElementById('import-file').click();}
-function importJSON(ev){
+function triggerRestore(){document.getElementById('restore-file').click();}
+function doRestore(ev){
   const file=ev.target.files[0];if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{try{
@@ -1862,7 +2272,9 @@ function importJSON(ev){
       nextId=Math.max(...nodes.map(n=>n.id),0)+1;
       selected=null;selEdge=null;clearFocus();closeEdgePopup();
       document.getElementById('edit-panel').style.display='none';
-      updAll();fitScreen();toast('Imported '+nodes.length+' nodes');
+      updAll();fitScreen();toast('Restored '+nodes.length+' nodes');
+    }else{
+      alert('Not a valid backup file (missing nodes/edges).');
     }
   }catch(err){alert('Invalid file: '+err.message);}};
   reader.readAsText(file);ev.target.value='';
@@ -2735,6 +3147,12 @@ canvas.addEventListener('dblclick',e=>{const rect=canvas.getBoundingClientRect()
 // ── Keyboard ───────────────────────────────────────────────────────
 document.addEventListener('keydown',e=>{
   const inInput=document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='TEXTAREA'||document.activeElement.tagName==='SELECT';
+  // Export modal handling — Esc closes it without affecting the canvas state
+  const expModal=document.getElementById('export-modal');
+  if(expModal&&expModal.classList.contains('show')){
+    if(e.key==='Escape'){e.preventDefault();closeExportModal();}
+    return;
+  }
   if(e.key==='Escape'){
     addMode=null;connectMode=false;connectSrc=null;connectDrag=null;dragCandidate=null;
     document.getElementById('connect-btn').classList.remove('active');
