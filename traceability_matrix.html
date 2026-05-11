@@ -347,7 +347,7 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 
 <!-- TOOLBAR -->
 <div class="toolbar">
-  <span class="tbar-title">Atlas 360 Traceability <span style="color:var(--text3);font-weight:400;">build 15</span></span>
+  <span class="tbar-title">Atlas 360 Traceability <span style="color:var(--text3);font-weight:400;">build 16</span></span>
   <button class="btn active" id="view-matrix">Matrix</button>
   <button class="btn" id="view-tree">Hierarchy</button>
   <button class="btn" id="view-graph">Graph</button>
@@ -368,8 +368,6 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
   <button class="btn" id="backup-btn" title="Download a JSON snapshot of all data">Backup</button>
   <button class="btn" id="restore-btn" title="Restore from a JSON backup">Restore</button>
   <input type="file" id="restore-file-input" accept=".json" style="display:none;">
-  <span class="sep"></span>
-  <button class="btn danger" id="clear-btn">Clear All</button>
   <span class="spacer"></span>
   <span id="sync-badge" class="saved">Local</span>
 </div>
@@ -628,29 +626,7 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 <div class="status-bar">
   <span id="status-counts">0 reqs</span>
   <span class="right" id="status-time"></span>
-  <a href="#" id="clear-link" style="color:#dc2626;text-decoration:underline;font-size:10px;cursor:pointer;" title="Wipes localStorage and reloads">Wipe data &amp; reload</a>
 </div>
-
-<script>
-// Inline backup clear handler — bound here, before any other scripts run,
-// so it's guaranteed to attach even if a later script throws.
-document.getElementById('clear-link').addEventListener('click', function(e){
-  e.preventDefault();
-  if(!confirm('Wipe ALL traceability data from this browser and reload? Cannot be undone.')) return;
-  try{ localStorage.removeItem('atlas360_traceability_v1'); }catch(err){}
-  location.reload();
-});
-// Also bind clear-btn here as a backup in case the main script fails
-(function(){
-  var btn = document.getElementById('clear-btn');
-  if(!btn) return;
-  btn.addEventListener('click', function(e){
-    if(!confirm('Clear ALL requirements? This cannot be undone.')) return;
-    try{ localStorage.removeItem('atlas360_traceability_v1'); }catch(err){}
-    location.reload();
-  });
-})();
-</script>
 
 <!-- MODAL (for new requirement creation) -->
 <div class="modal-overlay" id="modal">
@@ -3246,7 +3222,10 @@ document.getElementById('panel-toggle').addEventListener('click', () => {
    as a definition (uses last-seen parent IDs for trace links).
    ======================================================================== */
 
-document.getElementById('export-btn').addEventListener('click', exportXlsx);
+document.getElementById('export-btn').addEventListener('click', () => {
+  const includeNotes = confirm('Include Notes column in the export?\n\nOK = include Notes\nCancel = exclude Notes (cleaner for sharing)');
+  exportXlsx({ includeNotes });
+});
 document.getElementById('import-btn').addEventListener('click', () => document.getElementById('file-input').click());
 document.getElementById('file-input').addEventListener('change', importXlsx);
 document.getElementById('export-docx-btn').addEventListener('click', exportWord);
@@ -3309,7 +3288,9 @@ document.getElementById('restore-file-input').addEventListener('change', async e
   }
 });
 
-async function exportXlsx(){
+async function exportXlsx(options){
+  const opt = options || {};
+  const includeNotes = opt.includeNotes !== false; // default true
   setSyncBadge('saving');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Atlas 360 Traceability';
@@ -3318,19 +3299,22 @@ async function exportXlsx(){
     views: [{state:'frozen', ySplit:2}]
   });
 
-  ws.columns = [
+  // Column widths: ID columns slim (~11-14), text columns wide at 45 per user spec.
+  // ExcelJS column widths are in character units; 45 ≈ 320 pixels at Calibri 11.
+  const cols = [
     {key:'unId', width:11},
-    {key:'unDesc', width:32},
+    {key:'unDesc', width:45},
     {key:'srId', width:14},
-    {key:'srDesc', width:32},
+    {key:'srDesc', width:45},
     {key:'prId', width:14},
-    {key:'prDesc', width:32},
+    {key:'prDesc', width:45},
     {key:'ssId', width:14},
-    {key:'ssDesc', width:32},
+    {key:'ssDesc', width:45},
     {key:'do', width:24},
     {key:'owner', width:14},
-    {key:'notes', width:36},
   ];
+  if(includeNotes) cols.push({key:'notes', width:45});
+  ws.columns = cols;
 
   // Row 1: group headers
   ws.getCell('A1').value = 'User Need';
@@ -3353,11 +3337,11 @@ async function exportXlsx(){
   ws.getCell('H2').value = 'Description';
   ws.getCell('I2').value = 'Design Output Document/Part Number';
   ws.getCell('J2').value = 'Owner';
-  ws.getCell('K2').value = 'Notes';
+  if(includeNotes) ws.getCell('K2').value = 'Notes';
 
   // Header styling — match T-0008 template (Aptos Narrow, bold, centered, thin border)
   const headerFont = {name:'Aptos Narrow', size:9, bold:true};
-  const center = {horizontal:'center', vertical:'center', wrapText:true};
+  const center = {horizontal:'center', vertical:'middle', wrapText:true};
   const thinBorder = {
     top:{style:'thin', color:{argb:'FF999999'}},
     left:{style:'thin', color:{argb:'FF999999'}},
@@ -3369,7 +3353,8 @@ async function exportXlsx(){
     ws.getCell(addr).alignment = center;
     ws.getCell(addr).border = thinBorder;
   });
-  for(const col of 'ABCDEFGHIJK'){
+  const headerCols = includeNotes ? 'ABCDEFGHIJK' : 'ABCDEFGHIJ';
+  for(const col of headerCols){
     const c = ws.getCell(col + '2');
     c.font = headerFont;
     c.alignment = center;
@@ -3420,17 +3405,22 @@ async function exportXlsx(){
     row.getCell(8).value = r.ss ? getDescOf('ss', r.ss) : '';
     row.getCell(9).value = (r.ss && state.ss[r.ss]) ? state.ss[r.ss].do || '' : '';
     row.getCell(10).value = rowOwner(r);
-    row.getCell(11).value = rowNotes(r);
+    if(includeNotes) row.getCell(11).value = rowNotes(r);
 
-    // Borders + font for all data cells
-    for(let c=1;c<=11;c++){
+    // Borders + font + alignment for all data cells in this row.
+    // Text columns (descriptions, notes): vertically centered, horizontally left, wrap.
+    // ID columns: vertically centered AND horizontally centered. Compact and clean.
+    const lastCol = includeNotes ? 11 : 10;
+    for(let c=1;c<=lastCol;c++){
       const cell = row.getCell(c);
       cell.font = {name:'Aptos Narrow', size:9};
-      cell.alignment = {vertical:'top', wrapText:true};
+      cell.alignment = {vertical:'middle', horizontal:'left', wrapText:true};
       cell.border = thinBorder;
     }
-    // ID columns: monospace-like alignment, centered
-    [1,3,5,7,9,10].forEach(c => row.getCell(c).alignment = {vertical:'center', horizontal:'left', wrapText:true});
+    // ID columns (A, C, E, G, I, J): centered both ways
+    [1,3,5,7,9,10].forEach(c => {
+      row.getCell(c).alignment = {vertical:'middle', horizontal:'center', wrapText:true};
+    });
 
     rowIdx++;
   }
