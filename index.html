@@ -152,12 +152,7 @@ table.cvg tr:hover td{background:var(--surface2);}
 .ep-connections{font-size:11px;color:var(--text3);margin-top:6px;line-height:1.6;}
 .ep-conn-item{cursor:pointer;color:var(--accent);}.ep-conn-item:hover{text-decoration:underline;}
 
-/* edge popup */
-.edge-popup{position:absolute;background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:10px 12px;min-width:210px;box-shadow:0 4px 20px rgba(0,0,0,.12);z-index:100;pointer-events:all;user-select:none;}
-.edge-popup select{width:100%;background:#fff;border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;padding:4px 7px;font-family:'IBM Plex Sans',sans-serif;outline:none;}
-.ep-close{position:absolute;top:6px;right:8px;background:none;border:none;cursor:pointer;color:var(--text3);font-size:13px;line-height:1;}
-.ep-drag-handle{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);font-family:'IBM Plex Mono',monospace;cursor:grab;padding-right:20px;margin-bottom:6px;}
-.ep-drag-handle:active{cursor:grabbing;}
+/* (Edge popup CSS removed — edge editing now uses the right-side panel) */
 
 /* minimap */
 .minimap{position:absolute;bottom:32px;left:8px;background:rgba(255,255,255,.92);border:1px solid var(--border);border-radius:5px;overflow:hidden;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.10);}
@@ -360,19 +355,8 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 <div class="main">
   <canvas id="canvas"></canvas>
 
-  <!-- Edge occurrence popup -->
-  <div class="edge-popup" id="edge-popup" style="display:none">
-    <div class="ep-drag-handle" id="ep-drag-handle">Occurrence — Situation → Harm</div>
-    <button class="ep-close" onclick="closeEdgePopup()">✕</button>
-    <select id="edge-occ" onchange="saveEdgeOcc()">
-      <option value="">— not set —</option>
-      <option value="1">1 – Improbable</option>
-      <option value="2">2 – Remote</option>
-      <option value="3">3 – Occasional</option>
-      <option value="4">4 – Common</option>
-      <option value="5">5 – Frequent</option>
-    </select>
-  </div>
+  <!-- Edge edits now live in the right-side edge-edit-panel (schema v2);
+       the old floating popup has been removed. -->
 
   <!-- RIGHT PANEL -->
   <div class="panel" id="panel">
@@ -446,22 +430,11 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
             </div>
           </div>
           <div class="zcalc" id="init-zc">Initial Risk: <strong>—</strong></div>
-          <div class="two-col" style="margin-top:6px">
-            <div><label class="ep-lbl">Severity (post)</label>
-              <select id="ed-psev" onchange="recalc()">
-                <option value="">—</option><option value="1">1 – Negligible</option>
-                <option value="2">2 – Minor</option><option value="3">3 – Moderate</option>
-                <option value="4">4 – Serious</option><option value="5">5 – Catastrophic</option>
-              </select></div>
-            <div><label class="ep-lbl">Occurrence (post)</label>
-              <select id="ed-pocc" onchange="recalc()">
-                <option value="">—</option><option value="1">1 – Improbable</option>
-                <option value="2">2 – Remote</option><option value="3">3 – Occasional</option>
-                <option value="4">4 – Common</option><option value="5">5 – Frequent</option>
-              </select></div>
-          </div>
-          <div class="zcalc" id="post-zc">Residual Risk: <strong>—</strong></div>
+          <div class="zcalc" id="post-zc" style="margin-top:6px">Residual Risk: <strong>—</strong></div>
           <div class="z3-warn" id="z3-warn" style="display:none">Zone 3 — risk control required before post-control assessment</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:4px;font-style:italic">
+            Post-control severity / occurrence / assessment / risk controls live on each Situation→Harm edge. Click a path below to edit.
+          </div>
         </div>
 
         <label class="ep-lbl">Notes / References</label>
@@ -483,8 +456,9 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         </div>
 
         <div id="control-fields" style="display:none">
-          <label class="ep-lbl">Verification of Effectiveness <span style="font-weight:400;text-transform:none;letter-spacing:0">(col J)</span></label>
+          <label class="ep-lbl">Default Verification of Effectiveness <span style="font-weight:400;text-transform:none;letter-spacing:0">(used unless overridden per attachment)</span></label>
           <textarea id="ed-verification" rows="2" placeholder="ID-XXXX Verification Plan, test report ref..."></textarea>
+          <div id="ctrl-attached-display" style="margin-top:8px"></div>
         </div>
 
         <div id="ep-connections" class="ep-connections" style="display:none"></div>
@@ -526,6 +500,70 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         </div>
 
         <button class="btn active" onclick="saveEdit()">Save  (Enter)</button>
+      </div>
+
+      <!-- Edge edit panel (Situation→Harm) -->
+      <div class="edit-panel" id="edge-edit-panel" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.07em;text-transform:uppercase;color:var(--text3)">Situation → Harm edge</div>
+          <button onclick="closeEdgePopup()" title="Close edge editor" style="background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:11px;line-height:1;padding:2px 7px;border-radius:3px;font-family:'IBM Plex Mono',monospace">✕</button>
+        </div>
+        <div id="ee-summary" style="font-size:12px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin-bottom:10px"></div>
+
+        <div class="two-col">
+          <div><label class="ep-lbl">Initial Occurrence <span style="font-weight:400;text-transform:none;letter-spacing:0">(col G)</span></label>
+            <select id="ee-occ" onchange="saveEdgeField()">
+              <option value="">— not set —</option>
+              <option value="1">1 – Improbable</option>
+              <option value="2">2 – Remote</option>
+              <option value="3">3 – Occasional</option>
+              <option value="4">4 – Common</option>
+              <option value="5">5 – Frequent</option>
+            </select></div>
+          <div>
+            <label class="ep-lbl">Initial Risk</label>
+            <div id="ee-init-zc" class="zcalc">—</div>
+          </div>
+        </div>
+
+        <div class="two-col" style="margin-top:6px">
+          <div><label class="ep-lbl">Post Severity <span style="font-weight:400;text-transform:none;letter-spacing:0">(col K)</span></label>
+            <select id="ee-psev" onchange="saveEdgeField()">
+              <option value="">—</option><option value="1">1 – Negligible</option>
+              <option value="2">2 – Minor</option><option value="3">3 – Moderate</option>
+              <option value="4">4 – Serious</option><option value="5">5 – Catastrophic</option>
+            </select></div>
+          <div><label class="ep-lbl">Post Occurrence <span style="font-weight:400;text-transform:none;letter-spacing:0">(col L)</span></label>
+            <select id="ee-pocc" onchange="saveEdgeField()">
+              <option value="">—</option><option value="1">1 – Improbable</option>
+              <option value="2">2 – Remote</option><option value="3">3 – Occasional</option>
+              <option value="4">4 – Common</option><option value="5">5 – Frequent</option>
+            </select></div>
+        </div>
+        <div class="zcalc" id="ee-post-zc" style="margin-top:4px">Residual Risk: <strong>—</strong></div>
+        <div class="z3-warn" id="ee-z3-warn" style="display:none">Zone 3 — risk control required before post-control assessment</div>
+
+        <label class="ep-lbl" style="margin-top:8px">Post-Mitigation Assessment <span style="font-weight:400;text-transform:none;letter-spacing:0">(col N)</span></label>
+        <select id="ee-assessment" onchange="saveEdgeField()">
+          <option value="">— not set —</option>
+          <option value="Acceptable">Acceptable</option>
+          <option value="Not Acceptable">Not Acceptable</option>
+          <option value="Broadly Acceptable">Broadly Acceptable</option>
+        </select>
+
+        <label class="ep-lbl" style="margin-top:10px">Risk Controls Attached <span style="font-weight:400;text-transform:none;letter-spacing:0">(cols I & J)</span></label>
+        <div id="ee-controls-list" style="font-size:12px;margin-bottom:6px"></div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
+          <select id="ee-ctrl-picker" style="flex:1;background:#fff;border:1px solid var(--border);border-radius:4px;padding:4px 7px;font-size:12px"></select>
+          <button class="btn" onclick="attachControlToEdge()" style="padding:4px 10px;font-size:11px">+ Attach</button>
+        </div>
+
+        <label class="ep-lbl" style="margin-top:10px">Notes / References <span style="font-weight:400;text-transform:none;letter-spacing:0">(edge-specific)</span></label>
+        <textarea id="ee-notes" rows="2" placeholder="Per-path notes for this Situation → Harm pair..." onchange="saveEdgeField()"></textarea>
+
+        <div style="margin-top:10px;display:flex;gap:6px">
+          <button class="btn" onclick="deleteSelectedEdge()" style="color:var(--z3);border-color:rgba(220,38,38,.3)">Delete edge</button>
+        </div>
       </div>
     </div>
   </div>
@@ -650,22 +688,17 @@ setTimeout(resize,60);
 const w2s=(x,y)=>({x:x*zoom+pan.x,y:y*zoom+pan.y});
 const s2w=(x,y)=>({x:(x-pan.x)/zoom,y:(y-pan.y)/zoom});
 
-// Returns true if this situation has at least one downstream harm with a control connected
-// (ISO 14971: controls now connect Harm→Control, not Situation→Control)
+// Returns true if this situation has at least one outbound Situation→Harm edge
+// with at least one control attached.
+// (Schema v2: controls are attached to the Situation→Harm edge, not via Harm→Control edges.)
 function sitHasControl(sitNode){
-  const downstreamHarms=edges
-    .filter(e=>e.from===sitNode.id)
-    .map(e=>nodes.find(n=>n.id===e.to))
-    .filter(n=>n&&n.type==='harm');
-  if(!downstreamHarms.length) return false;
-  return downstreamHarms.some(h=>
-    edges.some(e=>e.from===h.id&&nodes.find(n=>n.id===e.to)?.type==='control')
-  );
+  return allSitHarmEdges().some(e=>e.from===sitNode.id&&edgeHasControl(e));
 }
 
-// Returns true if this harm has at least one control connected
+// Returns true if EVERY Situation→Harm edge into this harm has at least one control attached.
+// (Used by the "No Control" filter — a harm only counts as covered if *every* path has a control.)
 function harmHasControl(harmNode){
-  return edges.some(e=>e.from===harmNode.id&&nodes.find(n=>n.id===e.to)?.type==='control');
+  return harmFullyControlled(harmNode);
 }
 
 // ── Visibility ─────────────────────────────────────────────────────
@@ -924,6 +957,10 @@ function draw(){
     drawEdge(e,hl);
   });
 
+  // Control attachment lines: each Situation→Harm edge that has controls attached
+  // draws a dashed blue line from the edge midpoint to each attached control node.
+  drawControlAttachments(vn,dimEdges);
+
   // Preview line — for explicit connect mode and drag-to-connect
   const previewSrc=connectDrag||(connectMode&&connectSrc?connectSrc:null);
   if(previewSrc){
@@ -939,6 +976,55 @@ function draw(){
 
   visibleNodes().forEach(n=>{measure(n);drawNode(n);});
   drawMinimap();
+}
+
+// Compute the midpoint of a Situation→Harm edge in screen coords.
+// Mirrors the curve calculation in drawEdge so the line attaches at the visible label.
+function edgeMidScreen(e){
+  const src=nodes.find(n=>n.id===e.from),dst=nodes.find(n=>n.id===e.to);
+  if(!src||!dst)return null;
+  const ss=w2s(src.x,src.y),ds=w2s(dst.x,dst.y);
+  const dx=ds.x-ss.x,dy=ds.y-ss.y,dist=Math.hypot(dx,dy);
+  if(dist<1)return null;
+  const nx=dx/dist,ny=dy/dist;
+  const ts=Math.min((src.w/2)*zoom/Math.abs(nx||.001),(src.h/2)*zoom/Math.abs(ny||.001));
+  const td=Math.min((dst.w/2)*zoom/Math.abs(nx||.001),(dst.h/2)*zoom/Math.abs(ny||.001));
+  const x1=ss.x+nx*ts,y1=ss.y+ny*ts,x2=ds.x-nx*td,y2=ds.y-ny*td;
+  return {x:(x1+x2)/2+(y2-y1)*.15,y:(y1+y2)/2-(x2-x1)*.15};
+}
+
+function drawControlAttachments(visibleNodeIds,dimEdges){
+  ctx.save();
+  for(const e of edges){
+    const src=nodes.find(n=>n.id===e.from);
+    const dst=nodes.find(n=>n.id===e.to);
+    if(!src||!dst||src.type!=='situation'||dst.type!=='harm')continue;
+    if(!Array.isArray(e.controls)||!e.controls.length)continue;
+    if(!visibleNodeIds.has(e.from)||!visibleNodeIds.has(e.to))continue;
+    const mid=edgeMidScreen(e);
+    if(!mid)continue;
+    const isHotEdge=(e===hovEdge||e===selEdge);
+    for(const att of e.controls){
+      const ctrl=nodes.find(n=>n.id===att.controlId);
+      if(!ctrl||!visibleNodeIds.has(ctrl.id))continue;
+      const cs=w2s(ctrl.x,ctrl.y);
+      // Compute the attachment endpoint on the control node's perimeter
+      const dx=cs.x-mid.x,dy=cs.y-mid.y,dist=Math.hypot(dx,dy);
+      if(dist<1)continue;
+      const nx=dx/dist,ny=dy/dist;
+      const td=Math.min((ctrl.w/2)*zoom/Math.abs(nx||.001),(ctrl.h/2)*zoom/Math.abs(ny||.001));
+      const x2=cs.x-nx*td,y2=cs.y-ny*td;
+      const hl=!dimEdges||highlightIds.has(ctrl.id)||highlightIds.has(e.from)||highlightIds.has(e.to);
+      ctx.globalAlpha=hl?(isHotEdge?1:.55):.12;
+      ctx.setLineDash([4,3]);
+      ctx.strokeStyle=isHotEdge?'#2563eb':'rgba(37,99,235,.55)';
+      ctx.lineWidth=isHotEdge?1.5:1;
+      ctx.beginPath();ctx.moveTo(mid.x,mid.y);ctx.lineTo(x2,y2);ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
 }
 
 function drawEdge(e,highlighted){
@@ -1040,7 +1126,12 @@ function drawNode(n){
 
   if(n.type==='harm'){
     const worstOcc=harmWorstOcc(n);
-    const iz=zone(n.severity,worstOcc),pz=zone(n.postSeverity,n.postOccurrence);
+    const iz=zone(n.severity,worstOcc);
+    // Residual zone: worst-case across all inbound Situation→Harm edges' post-control values
+    const postZones=edges
+      .filter(e=>e.to===n.id&&nodes.find(x=>x.id===e.from)?.type==='situation')
+      .map(e=>zone(e.postSeverity,e.postOccurrence)).filter(Boolean);
+    const pz=postZones.length?Math.max(...postZones):null;
     const by=y+h-22*zoom,bh=14*zoom;
     if(iz){
       const bw=52*zoom,cx=s.x-(pz?bw*.56:0);
@@ -1164,10 +1255,21 @@ function hlText(text,query){
 }
 
 // ── Nodes ──────────────────────────────────────────────────────────
+// Data model (schema v2):
+//   Hazard node:    label, notes, evidence
+//   Situation node: label, sequence, notes, evidence
+//   Harm node:      label, severity, notes, evidence    (no post-control fields)
+//   Control node:   label, verification (default), notes, evidence
+//
+// Edges:
+//   Hazard→Situation:   no metadata
+//   Situation→Harm:     occurrence, postSeverity, postOccurrence, assessment,
+//                       controls: [{controlId, verification}] — per-pair attachment
+//   Harm→Control:       REMOVED in schema v2 (migrated to Situation→Harm.controls on Restore)
 function addNode(wx,wy,type){
   pushUndo();
   const L={hazard:'New Hazard',situation:'New Hazardous Situation',harm:'New Harm',control:'New Risk Control'};
-  const n={id:nextId++,type,label:L[type],x:wx,y:wy,w:190,h:60,notes:'',severity:null,postSeverity:null,postOccurrence:null,sequence:'',assessment:'',verification:'',evidence:[]};
+  const n={id:nextId++,type,label:L[type],x:wx,y:wy,w:190,h:60,notes:'',severity:null,sequence:'',verification:'',evidence:[]};
   nodes.push(n);selectNode(n);updAll();draw();
 }
 
@@ -1191,6 +1293,61 @@ function harmWorstOcc(harmNode){
   return occs.length?Math.max(...occs):null;
 }
 
+// ── Schema v2 helpers (edge-level controls & post-control fields) ──
+// Find a Situation→Harm edge by its endpoints
+function findSitHarmEdge(sitId,harmId){
+  return edges.find(e=>e.from===sitId&&e.to===harmId);
+}
+// Return the full list of Situation→Harm edges
+function allSitHarmEdges(){
+  return edges.filter(e=>{
+    const s=nodes.find(n=>n.id===e.from);
+    const h=nodes.find(n=>n.id===e.to);
+    return s&&h&&s.type==='situation'&&h.type==='harm';
+  });
+}
+// Controls attached to a Situation→Harm edge: returns array of {control, verification}
+// where `verification` is the per-attachment override (falls back to control.verification default)
+function edgeAttachments(edge){
+  if(!edge||!Array.isArray(edge.controls))return [];
+  return edge.controls.map(att=>{
+    const ctrl=nodes.find(n=>n.id===att.controlId);
+    if(!ctrl||ctrl.type!=='control')return null;
+    const verif=(att.verification&&att.verification.trim())?att.verification:(ctrl.verification||'');
+    return {control:ctrl,verification:verif,attachment:att};
+  }).filter(Boolean);
+}
+// All Situation→Harm edges this control is currently attached to
+function edgesUsingControl(controlId){
+  return allSitHarmEdges().filter(e=>(e.controls||[]).some(a=>a.controlId===controlId));
+}
+// True if a Situation→Harm edge has at least one attached control
+function edgeHasControl(edge){
+  return Array.isArray(edge.controls)&&edge.controls.length>0;
+}
+// Returns true if ANY Situation→Harm edge into this harm has controls attached
+function harmHasAnyControl(harmNode){
+  return allSitHarmEdges().some(e=>e.to===harmNode.id&&edgeHasControl(e));
+}
+// Returns true if EVERY Situation→Harm edge into this harm has at least one control attached
+function harmFullyControlled(harmNode){
+  const ins=allSitHarmEdges().filter(e=>e.to===harmNode.id);
+  return ins.length>0&&ins.every(edgeHasControl);
+}
+// Returns true if a Situation has at least one outbound Situation→Harm edge with controls attached
+function situationHasAnyControl(sitNode){
+  return allSitHarmEdges().some(e=>e.from===sitNode.id&&edgeHasControl(e));
+}
+// Pre-control zone for a Situation→Harm edge (severity × occurrence)
+function edgeInitialZone(edge){
+  const h=nodes.find(n=>n.id===edge.to);
+  return h?zone(h.severity,edge.occurrence):null;
+}
+// Post-control zone for a Situation→Harm edge (from edge's postSeverity/postOccurrence)
+function edgePostZone(edge){
+  return zone(edge.postSeverity,edge.postOccurrence);
+}
+
 function showEdit(n){
   document.getElementById('edit-panel').style.display='block';
   document.getElementById('ed-label').value=n.label||'';
@@ -1201,14 +1358,12 @@ function showEdit(n){
   const isCtrl=n.type==='control';
   document.getElementById('harm-fields').style.display=isH?'block':'none';
   document.getElementById('situation-fields').style.display=isSit?'block':'none';
-  document.getElementById('harm-assessment-field').style.display=isH?'block':'none';
+  // Post-control + assessment fields moved to the Situation→Harm edge edit panel (schema v2)
+  document.getElementById('harm-assessment-field').style.display='none';
   document.getElementById('control-fields').style.display=isCtrl?'block':'none';
   if(isH){
     document.getElementById('ed-sev').value=n.severity||'';
-    document.getElementById('ed-psev').value=n.postSeverity||'';
-    document.getElementById('ed-pocc').value=n.postOccurrence||'';
-    document.getElementById('ed-assessment').value=n.assessment||'';
-    // Show read-only occurrence from each inbound edge
+    // Per-path residual summary: each inbound edge shows occurrence + residual zone
     const inbound=harmInboundOccs(n);
     const OL=['','Improbable','Remote','Occasional','Common','Frequent'];
     const el=document.getElementById('ed-occ-display');
@@ -1217,13 +1372,39 @@ function showEdit(n){
     } else {
       el.innerHTML=inbound.map(x=>{
         const occStr=x.occ?`P=${x.occ} – ${OL[x.occ]}`:'<span style="color:var(--z2)">P=? not set</span>';
-        return `<span style="cursor:pointer;color:var(--accent)" onclick="selectFromId(${x.sit.id})" title="Click to select this situation">${x.sit.label.substring(0,28)}${x.sit.label.length>28?'…':''}</span>: ${occStr}`;
-      }).join('<br>');
+        const iz=zone(n.severity,x.occ);
+        const pz=zone(x.edge.postSeverity,x.edge.postOccurrence);
+        const ctrlCount=(x.edge.controls||[]).length;
+        const ctrlStr=ctrlCount?`${ctrlCount} control${ctrlCount!==1?'s':''}`:'<span style="color:var(--z3)">no controls</span>';
+        const izStr=iz?` · Initial: <strong style="color:${ZC[iz]}">${ZLB[iz]}</strong>`:'';
+        const pzStr=pz?` · Residual: <strong style="color:${ZC[pz]}">${ZLB[pz]}</strong>`:'';
+        return `<div style="padding:4px 0;border-bottom:1px solid var(--border)">
+          <span style="cursor:pointer;color:var(--accent)" onclick="selectEdge(${x.edge.from},${x.edge.to})" title="Click to open this Situation→Harm edge">${x.sit.label.substring(0,32)}${x.sit.label.length>32?'…':''}</span><br>
+          <span style="font-size:11px;color:var(--text2)">${occStr} · ${ctrlStr}${izStr}${pzStr}</span>
+        </div>`;
+      }).join('');
     }
     updZone(n);
   }
   if(isSit){document.getElementById('ed-sequence').value=n.sequence||'';}
-  if(isCtrl){document.getElementById('ed-verification').value=n.verification||'';}
+  if(isCtrl){
+    document.getElementById('ed-verification').value=n.verification||'';
+    // Show which Situation→Harm edges this control is attached to
+    const uses=edgesUsingControl(n.id);
+    const usesEl=document.getElementById('ctrl-attached-display');
+    if(usesEl){
+      if(!uses.length){
+        usesEl.innerHTML='<span style="color:var(--text3);font-style:italic">Not yet attached to any Situation→Harm edge. Select a Situation→Harm edge to attach.</span>';
+      } else {
+        usesEl.innerHTML='<div style="font-size:10px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Attached to '+uses.length+' situation→harm edge'+(uses.length!==1?'s':'')+'</div>'+
+          uses.map(e=>{
+            const s=nodes.find(x=>x.id===e.from);
+            const h=nodes.find(x=>x.id===e.to);
+            return `<div style="font-size:11px;padding:2px 0"><span style="cursor:pointer;color:var(--accent)" onclick="selectEdge(${e.from},${e.to})">${s?s.label.substring(0,22):'?'} → ${h?h.label.substring(0,22):'?'}</span></div>`;
+          }).join('');
+      }
+    }
+  }
   // Populate evidence panel
   hideEvForm();
   renderEvList(n);
@@ -1245,16 +1426,15 @@ function onTypeChange(){
   const t=document.getElementById('ed-type').value;
   document.getElementById('harm-fields').style.display=t==='harm'?'block':'none';
   document.getElementById('situation-fields').style.display=t==='situation'?'block':'none';
-  document.getElementById('harm-assessment-field').style.display=t==='harm'?'block':'none';
+  document.getElementById('harm-assessment-field').style.display='none';
   document.getElementById('control-fields').style.display=t==='control'?'block':'none';
 }
 
 function recalc(){
   if(!selected)return;
   selected.severity=+document.getElementById('ed-sev').value||null;
-  // occurrence is NOT stored on the node — it lives on the edge
-  selected.postSeverity=+document.getElementById('ed-psev').value||null;
-  selected.postOccurrence=+document.getElementById('ed-pocc').value||null;
+  // Severity changed — refresh per-path residual display
+  if(selected.type==='harm')showEdit(selected);
   updZone(selected);draw();updGaps();
 }
 
@@ -1262,7 +1442,6 @@ function updZone(n){
   // Initial zone: use worst-case occurrence across all inbound Situation→Harm edges
   const worstOcc=harmWorstOcc(n);
   const inbound=harmInboundOccs(n);
-  const OL=['','Improbable','Remote','Occasional','Common','Frequent'];
   const ie=document.getElementById('init-zc');
   const pe=document.getElementById('post-zc');
 
@@ -1280,12 +1459,21 @@ function updZone(n){
     ie.style.borderLeftColor='';
   }
 
-  const pz=zone(n.postSeverity,n.postOccurrence);
-  if(pz){pe.innerHTML=`Residual Risk: <strong style="color:${ZC[pz]}">${ZLB[pz]}</strong>`;pe.style.borderLeftColor=ZC[pz];}
-  else{pe.innerHTML='Residual Risk: <strong>—</strong>';pe.style.borderLeftColor='';}
+  // Residual zone: worst-case across inbound edges' post-control values
+  const postZones=inbound.map(x=>zone(x.edge.postSeverity,x.edge.postOccurrence)).filter(Boolean);
+  const worstPz=postZones.length?Math.max(...postZones):null;
+  if(worstPz){
+    const multiple=postZones.length>1;
+    const note=multiple?` (worst-case across ${postZones.length} paths)`:'';
+    pe.innerHTML=`Residual Risk: <strong style="color:${ZC[worstPz]}">${ZLB[worstPz]}</strong><span style="font-size:10px;color:var(--text3)">${note}</span>`;
+    pe.style.borderLeftColor=ZC[worstPz];
+  } else {
+    pe.innerHTML='Residual Risk: <strong>—</strong> <span style="font-size:10px;color:var(--text3)">set on each Situation→Harm edge</span>';
+    pe.style.borderLeftColor='';
+  }
 
   const worstIz=n.severity&&worstOcc?zone(n.severity,worstOcc):null;
-  document.getElementById('z3-warn').style.display=(worstIz===3&&!pz)?'block':'none';
+  document.getElementById('z3-warn').style.display=(worstIz===3&&!worstPz)?'block':'none';
 }
 
 function saveEdit(){
@@ -1296,10 +1484,7 @@ function saveEdit(){
   selected.notes=document.getElementById('ed-notes').value;
   if(selected.type==='harm'){
     selected.severity=+document.getElementById('ed-sev').value||null;
-    // occurrence NOT saved to node — lives on edges only
-    selected.postSeverity=+document.getElementById('ed-psev').value||null;
-    selected.postOccurrence=+document.getElementById('ed-pocc').value||null;
-    selected.assessment=document.getElementById('ed-assessment').value||'';
+    // Post-control fields now live on the Situation→Harm edge — not on the harm node.
   }
   if(selected.type==='situation'){selected.sequence=document.getElementById('ed-sequence').value||'';}
   if(selected.type==='control'){selected.verification=document.getElementById('ed-verification').value||'';}
@@ -1382,77 +1567,219 @@ function deleteSelected(){
   if(selEdge){pushUndo();edges=edges.filter(e=>e!==selEdge);selEdge=null;closeEdgePopup();updAll();draw();return;}
   if(!selected)return;
   pushUndo();
+  const delId=selected.id;
+  const wasControl=selected.type==='control';
   nodes=nodes.filter(n=>n!==selected);
-  edges=edges.filter(e=>e.from!==selected.id&&e.to!==selected.id);
+  edges=edges.filter(e=>e.from!==delId&&e.to!==delId);
+  // If we deleted a control, also remove its attachments from every edge.controls array
+  if(wasControl){
+    edges.forEach(e=>{
+      if(Array.isArray(e.controls)){
+        e.controls=e.controls.filter(c=>c.controlId!==delId);
+      }
+    });
+  }
   selected=null;document.getElementById('edit-panel').style.display='none';
   updAll();draw();
 }
 
 function selectFromId(id){const n=nodes.find(n=>n.id===id);if(n){selectNode(n);pan.x=canvas.offsetWidth/2-n.x*zoom;pan.y=canvas.offsetHeight/2-n.y*zoom;draw();}}
 
-// ── Edge popup ─────────────────────────────────────────────────────
-function showEdgePopup(e,sx,sy){
+// ── Edge edit panel (Situation→Harm) ──────────────────────────────
+// In schema v2 the small floating popup is replaced by a full edit panel on
+// the right, with all per-pair fields: occurrence, post-control values,
+// assessment, attached controls (with per-attachment verification override),
+// and edge-level notes.
+function showEdgePopup(e){
+  // Function kept by name for backward-compatibility of call sites.
+  showEdgeEdit(e);
+}
+function selectEdge(fromId,toId){
+  const e=edges.find(x=>x.from===fromId&&x.to===toId);
+  if(e)showEdgeEdit(e);
+}
+function showEdgeEdit(e){
   activePopupEdge=e;selEdge=e;selected=null;
   document.getElementById('edit-panel').style.display='none';
-  document.getElementById('edge-occ').value=e.occurrence||'';
-  const popup=document.getElementById('edge-popup');
-  popup.style.display='block';
-  const pw=210,W=canvas.offsetWidth;
-  let lx=sx+12,ly=sy-44;
-  if(lx+pw>W-285)lx=sx-pw-12;
-  if(ly<8)ly=sy+12;
-  popup.style.left=lx+'px';popup.style.top=ly+'px';
+  const panel=document.getElementById('edge-edit-panel');
+  panel.style.display='block';
+  const s=nodes.find(n=>n.id===e.from);
+  const h=nodes.find(n=>n.id===e.to);
+  const sLbl=s?s.label:'?',hLbl=h?h.label:'?';
+  document.getElementById('ee-summary').innerHTML=
+    `<span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em">FROM</span><br><span style="color:var(--situation)">${sLbl}</span><br>
+     <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-top:4px;display:inline-block">TO</span><br><span style="color:var(--harm)">${hLbl}</span>`;
+  document.getElementById('ee-occ').value=e.occurrence||'';
+  document.getElementById('ee-psev').value=e.postSeverity||'';
+  document.getElementById('ee-pocc').value=e.postOccurrence||'';
+  document.getElementById('ee-assessment').value=e.assessment||'';
+  document.getElementById('ee-notes').value=e.notes||'';
+  refreshEdgeZones(e);
+  refreshAttachedControls(e);
+  refreshControlPicker(e);
   updList();draw();
 }
-function closeEdgePopup(){document.getElementById('edge-popup').style.display='none';activePopupEdge=null;if(selEdge){selEdge=null;draw();}}
-function saveEdgeOcc(){if(!activePopupEdge)return;pushUndo();activePopupEdge.occurrence=+document.getElementById('edge-occ').value||null;updAll();draw();}
-
-// ── Popup drag ─────────────────────────────────────────────────────
-(function(){
-  const popup=document.getElementById('edge-popup');
-  const handle=document.getElementById('ep-drag-handle');
-  let pdx=0,pdy=0,px=0,py=0,draggingPopup=false;
-
-  handle.addEventListener('mousedown',e=>{
-    e.stopPropagation(); // don't let canvas see this
-    draggingPopup=true;
-    px=e.clientX-parseInt(popup.style.left||0);
-    py=e.clientY-parseInt(popup.style.top||0);
-    handle.style.cursor='grabbing';
-    e.preventDefault();
-  });
-
-  document.addEventListener('mousemove',e=>{
-    if(!draggingPopup)return;
-    const newLeft=e.clientX-px;
-    const newTop=e.clientY-py;
-    // Keep within viewport
-    const maxX=window.innerWidth-popup.offsetWidth-4;
-    const maxY=window.innerHeight-popup.offsetHeight-4;
-    popup.style.left=Math.max(4,Math.min(newLeft,maxX))+'px';
-    popup.style.top=Math.max(4,Math.min(newTop,maxY))+'px';
-  });
-
-  document.addEventListener('mouseup',()=>{
-    if(draggingPopup){draggingPopup=false;handle.style.cursor='grab';}
-  });
-})();
+function refreshEdgeZones(e){
+  const h=nodes.find(n=>n.id===e.to);
+  const iz=h?zone(h.severity,e.occurrence):null;
+  const pz=zone(e.postSeverity,e.postOccurrence);
+  const izEl=document.getElementById('ee-init-zc');
+  const pzEl=document.getElementById('ee-post-zc');
+  if(iz){izEl.innerHTML=`<strong style="color:${ZC[iz]}">${ZLB[iz]}</strong>`;izEl.style.borderLeftColor=ZC[iz];}
+  else{izEl.innerHTML='<strong>—</strong>';izEl.style.borderLeftColor='';}
+  if(pz){pzEl.innerHTML=`Residual Risk: <strong style="color:${ZC[pz]}">${ZLB[pz]}</strong>`;pzEl.style.borderLeftColor=ZC[pz];}
+  else{pzEl.innerHTML='Residual Risk: <strong>—</strong>';pzEl.style.borderLeftColor='';}
+  document.getElementById('ee-z3-warn').style.display=(iz===3&&!pz)?'block':'none';
+}
+function refreshAttachedControls(e){
+  const list=document.getElementById('ee-controls-list');
+  const atts=edgeAttachments(e);
+  if(!atts.length){
+    list.innerHTML='<div style="color:var(--text3);font-style:italic;padding:4px 0">No controls attached yet. Pick one below and click + Attach.</div>';
+    return;
+  }
+  list.innerHTML=atts.map((a,i)=>{
+    const usingDefault=!a.attachment.verification||a.attachment.verification.trim()===''||a.attachment.verification===a.control.verification;
+    const verifLabel=usingDefault?'Default verification (from control node)':'Custom verification for this path';
+    const verifValue=a.attachment.verification||'';
+    // Highlight attachments that were migrated from a v1 Harm→Control edge — the user
+    // should review whether each migrated attachment really applies to this specific path.
+    const isMigrated=a.attachment.migrated===true;
+    const borderColor=isMigrated?'#d97706':'var(--control)';
+    const reviewBadge=isMigrated
+      ? `<span style="font-size:9px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;letter-spacing:.05em;margin-left:4px" title="This attachment was migrated from a v1 Harm→Control edge. Verify the control actually applies to this specific (situation, harm) path; if it doesn't, detach it.">REVIEW</span>`
+      : '';
+    const ackBtn=isMigrated
+      ? `<button onclick="acknowledgeMigration(${a.control.id})" style="background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:10px;padding:1px 6px;border-radius:3px;margin-left:4px" title="Mark this attachment as reviewed for this path">✓ Keep</button>`
+      : '';
+    return `<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid ${borderColor};border-radius:4px;padding:8px 10px;margin:4px 0">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px">
+        <span style="cursor:pointer;color:var(--accent);font-size:12px" onclick="selectFromId(${a.control.id})">${a.control.label.substring(0,60)}${a.control.label.length>60?'…':''}${reviewBadge}</span>
+        <span style="white-space:nowrap">${ackBtn}<button onclick="detachControl(${a.control.id})" style="background:none;border:none;color:var(--z3);cursor:pointer;font-size:14px;padding:0 4px" title="Detach this control">✕</button></span>
+      </div>
+      <div style="font-size:10px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);margin-bottom:2px">${verifLabel}</div>
+      <textarea data-ctrlid="${a.control.id}" rows="2" placeholder="${(a.control.verification||'(no default verification set)').replace(/"/g,'&quot;')}" style="width:100%;font-size:12px;padding:4px 6px" onchange="updateAttachmentVerification(${a.control.id},this.value)">${verifValue}</textarea>
+      <div style="font-size:10px;color:var(--text3);margin-top:2px">Effective: <em>${a.verification?a.verification.substring(0,80)+(a.verification.length>80?'…':''):'(none — provide a default on the control node or a custom one here)'}</em></div>
+    </div>`;
+  }).join('');
+}
+// Clear the migrated flag on an attachment (user has confirmed it applies to this path)
+function acknowledgeMigration(controlId){
+  if(!activePopupEdge)return;
+  const att=(activePopupEdge.controls||[]).find(c=>c.controlId===controlId);
+  if(!att)return;
+  pushUndo();
+  delete att.migrated;
+  refreshAttachedControls(activePopupEdge);
+  updAll();toast('Reviewed');
+}
+function refreshControlPicker(e){
+  const picker=document.getElementById('ee-ctrl-picker');
+  const ctrls=nodes.filter(n=>n.type==='control').sort((a,b)=>a.label.localeCompare(b.label));
+  const attached=new Set((e.controls||[]).map(c=>c.controlId));
+  const available=ctrls.filter(c=>!attached.has(c.id));
+  if(!available.length){
+    picker.innerHTML='<option value="">— all controls already attached —</option>';
+  } else {
+    picker.innerHTML='<option value="">— pick a control to attach —</option>'+
+      available.map(c=>`<option value="${c.id}">${c.label.substring(0,60)}${c.label.length>60?'…':''}</option>`).join('');
+  }
+}
+function attachControlToEdge(){
+  if(!activePopupEdge)return;
+  const id=+document.getElementById('ee-ctrl-picker').value;
+  if(!id)return;
+  pushUndo();
+  if(!Array.isArray(activePopupEdge.controls))activePopupEdge.controls=[];
+  activePopupEdge.controls.push({controlId:id,verification:''});
+  refreshAttachedControls(activePopupEdge);
+  refreshControlPicker(activePopupEdge);
+  updAll();draw();toast('Control attached');
+}
+function detachControl(controlId){
+  if(!activePopupEdge)return;
+  pushUndo();
+  activePopupEdge.controls=(activePopupEdge.controls||[]).filter(c=>c.controlId!==controlId);
+  refreshAttachedControls(activePopupEdge);
+  refreshControlPicker(activePopupEdge);
+  updAll();draw();toast('Control detached');
+}
+function updateAttachmentVerification(controlId,value){
+  if(!activePopupEdge)return;
+  const att=(activePopupEdge.controls||[]).find(c=>c.controlId===controlId);
+  if(!att)return;
+  pushUndo();
+  att.verification=value||'';
+  refreshAttachedControls(activePopupEdge);
+  updAll();
+}
+function saveEdgeField(){
+  if(!activePopupEdge)return;
+  pushUndo();
+  activePopupEdge.occurrence=+document.getElementById('ee-occ').value||null;
+  activePopupEdge.postSeverity=+document.getElementById('ee-psev').value||null;
+  activePopupEdge.postOccurrence=+document.getElementById('ee-pocc').value||null;
+  activePopupEdge.assessment=document.getElementById('ee-assessment').value||'';
+  activePopupEdge.notes=document.getElementById('ee-notes').value||'';
+  refreshEdgeZones(activePopupEdge);
+  updAll();draw();
+}
+function deleteSelectedEdge(){
+  if(!activePopupEdge)return;
+  pushUndo();
+  const e=activePopupEdge;
+  edges=edges.filter(x=>x!==e);
+  closeEdgePopup();
+  updAll();draw();toast('Edge deleted');
+}
+function closeEdgePopup(){
+  document.getElementById('edge-edit-panel').style.display='none';
+  activePopupEdge=null;
+  if(selEdge){selEdge=null;draw();}
+}
+// Back-compat shim — old code paths called saveEdgeOcc
+function saveEdgeOcc(){saveEdgeField();}
 
 function getGaps(){
   const harms=nodes.filter(n=>n.type==='harm');
   const gaps=[];
-  // Unassessed: severity not set (occurrence is per-edge, handled separately)
+  // Unassessed: harm severity not set (still on the harm node — it's invariant per goal 3)
   harms.forEach(h=>{if(!h.severity)gaps.push({type:'unassessed',label:h.label,id:h.id,sev:'gray',sortKey:0});});
-  // Zone checks use worst-case occurrence across inbound edges
-  harms.forEach(h=>{const iz=zone(h.severity,harmWorstOcc(h));if(iz===3&&(!h.postSeverity||!h.postOccurrence))gaps.push({type:'z3-no-post',label:h.label,id:h.id,sev:'red',sortKey:3,zone:3});});
-  harms.forEach(h=>{const iz=zone(h.severity,harmWorstOcc(h));if(iz===2&&(!h.postSeverity||!h.postOccurrence))gaps.push({type:'z2-no-post',label:h.label,id:h.id,sev:'amber',sortKey:2,zone:2});});
-  edges.forEach(e=>{const s=nodes.find(n=>n.id===e.from),d=nodes.find(n=>n.id===e.to);if(s&&d&&s.type==='situation'&&d.type==='harm'&&!e.occurrence)gaps.push({type:'no-occ',label:d.label+' ← '+s.label,id:d.id,sev:'amber',sortKey:1});});
-  nodes.filter(n=>n.type==='situation').forEach(sit=>{if(!edges.some(e=>e.from===sit.id&&nodes.find(n=>n.id===e.to)?.type==='harm'))gaps.push({type:'no-harm',label:sit.label,id:sit.id,sev:'amber',sortKey:1});});
-  // no-ctrl: situation has at least one harm, but none of those harms have a control
+
+  // Per-edge zone checks: each Situation→Harm edge has its own residual.
+  // Flag edges in Z3/Z2 that are missing post-control data.
+  allSitHarmEdges().forEach(e=>{
+    const s=nodes.find(n=>n.id===e.from);
+    const h=nodes.find(n=>n.id===e.to);
+    if(!s||!h)return;
+    const iz=zone(h.severity,e.occurrence);
+    const hasPost=!!(e.postSeverity&&e.postOccurrence);
+    const lbl=h.label+' ← '+s.label;
+    if(iz===3&&!hasPost){
+      gaps.push({type:'z3-no-post',label:lbl,id:h.id,edgeFrom:e.from,edgeTo:e.to,sev:'red',sortKey:3,zone:3});
+    } else if(iz===2&&!hasPost){
+      gaps.push({type:'z2-no-post',label:lbl,id:h.id,edgeFrom:e.from,edgeTo:e.to,sev:'amber',sortKey:2,zone:2});
+    }
+    if(!e.occurrence){
+      gaps.push({type:'no-occ',label:lbl,id:h.id,edgeFrom:e.from,edgeTo:e.to,sev:'amber',sortKey:1});
+    }
+    if(!edgeHasControl(e)){
+      gaps.push({type:'no-ctrl',label:lbl,id:h.id,edgeFrom:e.from,edgeTo:e.to,sev:iz===3?'red':(iz===2?'amber':'gray'),sortKey:iz||0,zone:iz});
+    }
+    // Migration review: any attachment still marked migrated needs explicit user review.
+    // The migration fanned controls to every Situation→Harm edge feeding a harm,
+    // so the user must confirm each one really applies to this specific path.
+    const migratedCount=(e.controls||[]).filter(c=>c.migrated).length;
+    if(migratedCount>0){
+      gaps.push({type:'migration-review',label:lbl,id:h.id,edgeFrom:e.from,edgeTo:e.to,sev:'amber',sortKey:1,count:migratedCount});
+    }
+  });
+
+  // Situations with no downstream harm linked
   nodes.filter(n=>n.type==='situation').forEach(sit=>{
-    const sitHarms=edges.filter(e=>e.from===sit.id).map(e=>nodes.find(n=>n.id===e.to)).filter(n=>n&&n.type==='harm');
-    if(sitHarms.length>0&&!sitHarms.some(h=>harmHasControl(h)))
-      gaps.push({type:'no-ctrl',label:sit.label,id:sit.id,sev:'gray',sortKey:0});
+    if(!edges.some(e=>e.from===sit.id&&nodes.find(n=>n.id===e.to)?.type==='harm')){
+      gaps.push({type:'no-harm',label:sit.label,id:sit.id,sev:'amber',sortKey:1});
+    }
   });
   return gaps;
 }
@@ -1487,8 +1814,8 @@ function updGaps(){
   </div>`;
 
   // Filter row
-  const gfTypes=['all','unassessed','z3-no-post','z2-no-post','no-occ','no-harm','no-ctrl'];
-  const gfLabels={all:'All',unassessed:'Unassessed','z3-no-post':'Z3 no post','z2-no-post':'Z2 no post','no-occ':'No occ.','no-harm':'No harm','no-ctrl':'No control'};
+  const gfTypes=['all','unassessed','z3-no-post','z2-no-post','no-occ','no-harm','no-ctrl','migration-review'];
+  const gfLabels={all:'All',unassessed:'Unassessed','z3-no-post':'Z3 no post','z2-no-post':'Z2 no post','no-occ':'No occ.','no-harm':'No harm','no-ctrl':'No control','migration-review':'Review (v1→v2)'};
   html+='<div class="gap-filter-row">';
   gfTypes.forEach(t=>{const cnt=t==='all'?allGaps.length:allGaps.filter(g=>g.type===t).length;if(cnt||t==='all')html+=`<button class="gfbtn${gapFilter===t?' active':''}" onclick="setGapFilter('${t}')">${gfLabels[t]} <span style="opacity:.6">${cnt}</span></button>`;});
   html+='</div>';
@@ -1497,12 +1824,13 @@ function updGaps(){
   filtered.sort((a,b)=>b.sortKey-a.sortKey);
 
   const groupDefs=[
-    {key:'z3-no-post',    title:'Zone 3 — missing post-control data', desc:'Requires risk controls and residual assessment'},
-    {key:'unassessed',    title:'Harms not yet assessed',             desc:'Assign severity and occurrence to calculate zone'},
-    {key:'z2-no-post',    title:'Zone 2 — missing post-control data', desc:'ALARP — reduce risk as far as possible'},
-    {key:'no-occ',        title:'Occurrence not set on arrow',        desc:'Click the Situation→Harm arrow to assign P='},
-    {key:'no-harm',       title:'Situations with no linked harm',     desc:'Review — may be missing downstream harm nodes'},
-    {key:'no-ctrl',       title:'Situations with no risk control',    desc:'Consider documenting risk control measures'},
+    {key:'z3-no-post',       title:'Zone 3 — missing post-control data', desc:'Requires risk controls and residual assessment'},
+    {key:'unassessed',       title:'Harms not yet assessed',             desc:'Assign severity and occurrence to calculate zone'},
+    {key:'z2-no-post',       title:'Zone 2 — missing post-control data', desc:'ALARP — reduce risk as far as possible'},
+    {key:'no-occ',           title:'Occurrence not set on arrow',        desc:'Click the Situation→Harm arrow to assign P='},
+    {key:'no-harm',          title:'Situations with no linked harm',     desc:'Review — may be missing downstream harm nodes'},
+    {key:'no-ctrl',          title:'Paths with no risk control attached',desc:'Open the Situation→Harm edge to attach controls'},
+    {key:'migration-review', title:'Migrated v1→v2 — review per path',   desc:'Confirm each migrated control actually applies to this specific (situation, harm) path; detach if it doesn\'t'},
   ];
 
   if(gapFilter==='all'){
@@ -1526,7 +1854,12 @@ function gapItemHTML(g,desc){
   const canvasBtn=g.type==='no-ctrl'
     ?`<span onclick="event.stopPropagation();activateNoCtrlFilter()" style="font-size:10px;color:#7c3aed;cursor:pointer;margin-left:4px;font-family:'IBM Plex Mono',monospace">▶ Show on canvas</span>`
     :'';
-  return`<div class="gap-item" onclick="selectFromId(${g.id});switchTab('nodes')">
+  // If this gap is per-edge (carries edgeFrom/edgeTo), clicking opens that edge's edit panel.
+  // Otherwise (harm-level gap), select the harm node.
+  const onClick=g.edgeFrom!=null
+    ? `selectEdge(${g.edgeFrom},${g.edgeTo})`
+    : `selectFromId(${g.id});switchTab('nodes')`;
+  return`<div class="gap-item" onclick="${onClick}">
     <div class="gap-dot ${g.sev}"></div>
     <div style="flex:1"><div class="gap-label">${g.label.substring(0,60)}${g.label.length>60?'…':''}</div>
     <div class="ncard-sub">${desc}${canvasBtn}</div></div>
@@ -1535,8 +1868,9 @@ function gapItemHTML(g,desc){
 function setGapFilter(f){gapFilter=f;updGaps();}
 
 // ── Fault Tree tab ──────────────────────────────────────────────────
-// Shows each Harm with every Situation→Harm path that leads to it,
-// including the upstream Hazard, occurrence, zone, and risk control.
+// Shows each Harm with every Situation→Harm path that leads to it, including
+// the upstream Hazard, this edge's occurrence, this edge's residual zone, and
+// the risk controls attached to *this specific Situation→Harm edge*.
 function updFaultTree(){
   if(activeTab!=='ft')return;
   const el=document.getElementById('ft-content');
@@ -1544,33 +1878,30 @@ function updFaultTree(){
   if(!harms.length){el.innerHTML='<div class="gap-empty">No harm nodes in diagram.</div>';return;}
 
   const OL=['','Improbable','Remote','Occasional','Common','Frequent'];
+  const ZC3={'1':'var(--z1)','2':'var(--z2)','3':'var(--z3)'};
+  const ZL={'1':'Z1','2':'Z2','3':'Z3'};
   let html='';
   harms.forEach(h=>{
-    // All Situation→Harm edges into this harm
+    // All Situation→Harm edges into this harm — each is its own row in the fault tree
     const inbound=edges
       .filter(e=>e.to===h.id)
       .map(e=>{
         const sit=nodes.find(n=>n.id===e.from);
         if(!sit||sit.type!=='situation')return null;
-        // Upstream hazard(s) for this situation
         const hazards=edges
           .filter(e2=>e2.to===sit.id)
           .map(e2=>nodes.find(n=>n.id===e2.from))
           .filter(n=>n&&n.type==='hazard');
-        // Risk controls: connected from the harm node (harm→control)
-        const controls=edges
-          .filter(e2=>e2.from===h.id)
-          .map(e2=>nodes.find(n=>n.id===e2.to))
-          .filter(n=>n&&n.type==='control');
-        return{sit,occ:e.occ||e.occurrence,hazards,controls};
+        const attachments=edgeAttachments(e);
+        return{edge:e,sit,occ:e.occurrence,hazards,attachments};
       }).filter(Boolean);
 
+    // Harm-level summary: worst-case initial zone and worst-case residual across all paths
     const worstOcc=harmWorstOcc(h);
     const iz=zone(h.severity,worstOcc);
-    const missingPost=!h.postSeverity||!h.postOccurrence;
-
-    const ZC3={'1':'var(--z1)','2':'var(--z2)','3':'var(--z3)'};
-    const ZL={'1':'Z1','2':'Z2','3':'Z3'};
+    const residuals=inbound.map(p=>zone(p.edge.postSeverity,p.edge.postOccurrence)).filter(Boolean);
+    const worstPz=residuals.length?Math.max(...residuals):null;
+    const someMissingPost=inbound.some(p=>!p.edge.postSeverity||!p.edge.postOccurrence);
     const izStyle=iz?`color:${ZC3[iz]}`:'color:var(--text3)';
     const izLabel=iz?ZL[iz]:'—';
 
@@ -1579,7 +1910,7 @@ function updFaultTree(){
         <span class="ft-lbl">${h.label}</span>
         <span class="ncard-zone" style="font-size:9px;${izStyle}">${izLabel}</span>
         <span style="font-size:9px;color:var(--text3)">S${h.severity||'?'}</span>
-        ${missingPost?'<span style="font-size:9px;background:#f3e5f5;color:#6a1b9a;padding:1px 4px;border-radius:3px">post?</span>':''}
+        ${someMissingPost?'<span style="font-size:9px;background:#f3e5f5;color:#6a1b9a;padding:1px 4px;border-radius:3px">post?</span>':''}
         <span style="font-size:9px;color:var(--text3)">${inbound.length} path${inbound.length!==1?'s':''}</span>
       </div>
       <div class="ft-paths" style="display:none">`;
@@ -1587,10 +1918,12 @@ function updFaultTree(){
     if(!inbound.length){
       html+=`<div class="ft-path" style="color:var(--text3);font-style:italic">No hazardous situations linked</div>`;
     } else {
-      inbound.forEach(({sit,occ,hazards,controls})=>{
+      inbound.forEach(({edge,sit,occ,hazards,attachments})=>{
         const pathZ=zone(h.severity,occ);
+        const pathPz=zone(edge.postSeverity,edge.postOccurrence);
         const pzStyle=pathZ?`color:${ZC3[pathZ]}`:'color:var(--text3)';
-        html+=`<div class="ft-path">
+        const pPzStyle=pathPz?`color:${ZC3[pathPz]}`:'color:var(--text3)';
+        html+=`<div class="ft-path" style="cursor:pointer" onclick="selectEdge(${edge.from},${edge.to})" title="Open this Situation→Harm edge">
           <div class="ft-chain">
             ${hazards.map(hz=>`<span style="font-size:9px;background:#ffebee;color:#b71c1c;padding:1px 5px;border-radius:3px">${hz.label.substring(0,28)}${hz.label.length>28?'…':''}</span>`).join('')||''}
             ${hazards.length?`<span class="ft-sep">→</span>`:''}
@@ -1598,12 +1931,14 @@ function updFaultTree(){
             <span class="ft-sep">→</span>
             <span style="font-size:9px;color:var(--text2)">P=${occ||'?'} ${occ?OL[occ]:''}</span>
             <span class="ft-sep">→</span>
-            <span style="font-size:9px;font-weight:600;${pzStyle}">${pathZ?ZL[pathZ]:'—'}</span>
+            <span style="font-size:9px;font-weight:600;${pzStyle}">Initial ${pathZ?ZL[pathZ]:'—'}</span>
+            <span class="ft-sep">→</span>
+            <span style="font-size:9px;font-weight:600;${pPzStyle}">Residual ${pathPz?ZL[pathPz]:'—'}</span>
           </div>
           <div class="ft-ctrl-row">
-            ${controls.length
-              ? controls.map(c=>`<span style="font-size:9px;background:#e3f2fd;color:#0d47a1;padding:1px 5px;border-radius:3px">${c.label.substring(0,55)}${c.label.length>55?'…':''}</span>`).join('')
-              : `<span class="ft-no-ctrl">No risk control connected to this situation</span>`}
+            ${attachments.length
+              ? attachments.map(a=>`<span style="font-size:9px;background:#e3f2fd;color:#0d47a1;padding:1px 5px;border-radius:3px">${a.control.label.substring(0,55)}${a.control.label.length>55?'…':''}</span>`).join('')
+              : `<span class="ft-no-ctrl">No risk control attached to this path</span>`}
           </div>
         </div>`;
       });
@@ -1615,6 +1950,7 @@ function updFaultTree(){
 
 // ── Coverage Matrix tab ─────────────────────────────────────────────
 // Rows = situations, columns = 6 properties. Green/red/amber dots.
+// Schema v2: control and post-control checks walk Situation→Harm edges (not harm nodes).
 function updMatrix(){
   if(activeTab!=='mx')return;
   const el=document.getElementById('mx-content');
@@ -1632,19 +1968,23 @@ function updMatrix(){
     </tr></thead><tbody>`;
 
   sits.forEach(sit=>{
-    const outEdges=edges.filter(e=>e.from===sit.id);
-    const harmEdges=outEdges.filter(e=>{const t=nodes.find(n=>n.id===e.to);return t&&t.type==='harm';});
-    const linkedHarms=harmEdges.map(e=>nodes.find(n=>n.id===e.to)).filter(Boolean);
-    const hasHarms=linkedHarms.length>0;
-    const occsSet=hasHarms&&harmEdges.every(e=>e.occurrence||e.occ);
-    // Control check: any downstream harm has a control connected (harm→control)
-    const hasCtrl=hasHarms&&linkedHarms.some(h=>harmHasControl(h));
-    const allPost=hasHarms&&linkedHarms.every(h=>h.postSeverity&&h.postOccurrence);
-    const anyMissingPost=hasHarms&&linkedHarms.some(h=>!h.postSeverity||!h.postOccurrence);
+    const outHarmEdges=edges.filter(e=>{
+      const t=nodes.find(n=>n.id===e.to);
+      return e.from===sit.id&&t&&t.type==='harm';
+    });
+    const linkedHarms=outHarmEdges.map(e=>nodes.find(n=>n.id===e.to)).filter(Boolean);
+    const hasHarms=outHarmEdges.length>0;
+    const occsSet=hasHarms&&outHarmEdges.every(e=>e.occurrence);
+    // Control check: every outbound Situation→Harm edge has at least one control attached
+    const hasCtrl=hasHarms&&outHarmEdges.every(edgeHasControl);
+    const partialCtrl=hasHarms&&!hasCtrl&&outHarmEdges.some(edgeHasControl);
+    // Post-control: every outbound Situation→Harm edge has post-severity and post-occurrence
+    const allPost=hasHarms&&outHarmEdges.every(e=>e.postSeverity&&e.postOccurrence);
+    const anyMissingPost=hasHarms&&outHarmEdges.some(e=>!e.postSeverity||!e.postOccurrence);
     const gaps=[];
     if(!hasHarms)gaps.push('no harm');
     if(hasHarms&&!occsSet)gaps.push('P= missing');
-    if(!hasCtrl)gaps.push('no control');
+    if(!hasCtrl)gaps.push(partialCtrl?'partial control':'no control');
     if(anyMissingPost)gaps.push('post TBD');
 
     html+=`<tr>
@@ -1653,7 +1993,7 @@ function updMatrix(){
         ? linkedHarms.map(h=>`<span style="font-size:9px;background:#e8f5e9;color:#1b5e20;padding:1px 4px;border-radius:3px;display:inline-block;margin:1px">${h.label.substring(0,18)}${h.label.length>18?'…':''}</span>`).join('')
         : '<span class="mx-gf">None</span>'}</td>
       <td style="text-align:center"><span class="mx-dot ${occsSet&&hasHarms?'mx-g':'mx-r'}"></span></td>
-      <td style="text-align:center"><span class="mx-dot ${hasCtrl?'mx-g':'mx-r'}"></span></td>
+      <td style="text-align:center"><span class="mx-dot ${hasCtrl?'mx-g':partialCtrl?'mx-a':'mx-r'}"></span></td>
       <td style="text-align:center"><span class="mx-dot ${!hasHarms?'mx-m':anyMissingPost?'mx-r':allPost?'mx-g':'mx-a'}"></span></td>
       <td>${gaps.length===0
         ? '<span class="mx-ok">✓</span>'
@@ -1669,82 +2009,87 @@ function updMatrix(){
 
 // ── Open Items tab ──────────────────────────────────────────────────
 // Structured checklist: Critical / TBD / Watch — derived from live diagram state.
+// Schema v2: post-control fields and assessment are now on Situation→Harm edges, not on harm nodes.
 function updOpenItems(){
   if(activeTab!=='oi')return;
   const el=document.getElementById('oi-content');
   const critical=[],tbd=[],watch=[];
 
-  // Critical: Zone 3 harms missing post-control
-  nodes.filter(n=>n.type==='harm').forEach(h=>{
-    const wo=harmWorstOcc(h);
-    const iz=zone(h.severity,wo);
-    if(iz===3&&(!h.postSeverity||!h.postOccurrence)){
-      critical.push({w:'Post-control data missing — Zone 3 requires risk-benefit analysis before clearance',x:h.label});
+  // Walk each Situation→Harm edge for per-path checks
+  allSitHarmEdges().forEach(e=>{
+    const s=nodes.find(n=>n.id===e.from);
+    const h=nodes.find(n=>n.id===e.to);
+    if(!s||!h)return;
+    const iz=zone(h.severity,e.occurrence);
+    const pathLabel=`${s.label.substring(0,32)} → ${h.label.substring(0,30)}`;
+
+    // Critical: Zone 3 path missing post-control
+    if(iz===3&&(!e.postSeverity||!e.postOccurrence)){
+      critical.push({w:'Post-control data missing — Zone 3 requires risk-benefit analysis before clearance',x:pathLabel});
     }
-    if(h.severity===5&&!h.assessment){
-      critical.push({w:'Post-mitigation assessment missing for catastrophic (S5) harm',x:h.label});
+    // Critical: catastrophic-severity path with no post-mitigation assessment
+    if(h.severity===5&&!e.assessment){
+      critical.push({w:'Post-mitigation assessment missing for catastrophic (S5) path',x:pathLabel});
     }
+    // Critical: Zone 3 path with no controls attached
+    if(iz===3&&!edgeHasControl(e)){
+      critical.push({w:'Zone 3 path has no risk control attached — attach a Risk Control to this Situation→Harm edge',x:pathLabel});
+    }
+    // TBD: missing occurrence
+    if(!e.occurrence){
+      tbd.push({w:'Occurrence (P=) not set on Situation→Harm edge',x:pathLabel});
+    }
+    // TBD: Zone 2 missing post-control
+    if(iz===2&&(!e.postSeverity||!e.postOccurrence)){
+      tbd.push({w:'Zone 2 (ALARP) — post-control severity and occurrence not yet documented for this path',x:pathLabel});
+    }
+    // TBD: edge has controls but missing per-attachment verification AND control has no default
+    (e.controls||[]).forEach(att=>{
+      const ctrl=nodes.find(n=>n.id===att.controlId);
+      if(!ctrl)return;
+      const effectiveVerif=(att.verification&&att.verification.trim())||(ctrl.verification||'');
+      if(!effectiveVerif.trim()){
+        tbd.push({w:'Attached control has no verification text (neither default nor per-attachment)',x:`${ctrl.label.substring(0,40)} on ${pathLabel.substring(0,30)}`});
+      }
+    });
   });
 
-  // Critical: Situations with Zone 3 harms and no control
-  nodes.filter(n=>n.type==='situation').forEach(sit=>{
-    const harmEdges=edges.filter(e=>e.from===sit.id&&nodes.find(n=>n.id===e.to)?.type==='harm');
-    const linkedHarms=harmEdges.map(e=>nodes.find(n=>n.id===e.to)).filter(Boolean);
-    const hasZ3=linkedHarms.some(h=>zone(h.severity,harmEdges.find(e=>e.to===h.id)?.occurrence)===3);
-    if(hasZ3&&!sitHasControl(sit)){
-      critical.push({w:'Zone 3 harm path has no risk control — add a Risk Control to the linked Harm node',x:sit.label.substring(0,55)});
-    }
-  });
-
-  // TBD: Missing occurrence on Situation→Harm arrows
-  edges.forEach(e=>{
-    const s=nodes.find(n=>n.id===e.from),d=nodes.find(n=>n.id===e.to);
-    if(s&&d&&s.type==='situation'&&d.type==='harm'&&!e.occurrence&&!(e.occ)){
-      tbd.push({w:'Occurrence (P=) not set on Situation→Harm arrow',x:`${s.label.substring(0,35)} → ${d.label.substring(0,30)}`});
-    }
-  });
-
-  // TBD: Situations with no harm
+  // TBD: situation with no linked harm
   nodes.filter(n=>n.type==='situation').forEach(sit=>{
     if(!edges.some(e=>e.from===sit.id&&nodes.find(n=>n.id===e.to)?.type==='harm')){
       tbd.push({w:'Hazardous situation has no linked harm node',x:sit.label.substring(0,60)});
     }
   });
 
-  // TBD: Zone 2 harms missing post-control
-  nodes.filter(n=>n.type==='harm').forEach(h=>{
-    const iz=zone(h.severity,harmWorstOcc(h));
-    if(iz===2&&(!h.postSeverity||!h.postOccurrence)){
-      tbd.push({w:'Zone 2 (ALARP) — post-control severity and occurrence not yet documented',x:h.label});
-    }
-  });
-
-  // TBD: Controls with no verification text
+  // TBD: orphan controls (not attached to any Situation→Harm edge)
   nodes.filter(n=>n.type==='control').forEach(c=>{
-    if(!c.verification||c.verification.trim()===''){
-      tbd.push({w:'Risk control has no verification of effectiveness documented',x:c.label.substring(0,55)});
+    if(!edgesUsingControl(c.id).length){
+      tbd.push({w:'Risk control is not attached to any Situation→Harm edge — orphan',x:c.label.substring(0,60)});
     }
   });
 
-  // Watch: Harms reachable from 3+ different situations (convergent — high priority)
+  // Watch: harms reached from 3+ different situations (convergent — high priority)
   nodes.filter(n=>n.type==='harm').forEach(h=>{
     const paths=edges.filter(e=>e.to===h.id&&nodes.find(n=>n.id===e.from)?.type==='situation').length;
     if(paths>=3){
-      watch.push({w:`This harm is reached from ${paths} independent situations — convergent risk; verify all paths are controlled`,x:h.label});
+      watch.push({w:`This harm is reached from ${paths} independent situations — convergent risk; verify each path is controlled appropriately`,x:h.label});
     }
   });
 
-  // Watch: Controls protecting 3+ situations (single point of failure)
+  // Watch: controls reused across 3+ Situation→Harm edges (single point of failure if relied upon)
   nodes.filter(n=>n.type==='control').forEach(c=>{
-    const sitCount=edges.filter(e=>e.to===c.id&&nodes.find(n=>n.id===e.from)?.type==='situation').length;
-    if(sitCount>=3){
-      watch.push({w:`Single control covers ${sitCount} situations — review whether control is effective across all scenarios`,x:c.label.substring(0,55)});
+    const usingEdges=edgesUsingControl(c.id);
+    if(usingEdges.length>=3){
+      watch.push({w:`Single control covers ${usingEdges.length} Situation→Harm paths — review whether the control is genuinely effective on each path`,x:c.label.substring(0,55)});
     }
   });
 
-  // Watch: Harms with severity 4-5 and acceptable post-assessment — verify rationale documented
-  nodes.filter(n=>n.type==='harm'&&n.severity>=4&&n.assessment==='Acceptable').forEach(h=>{
-    watch.push({w:'Serious/catastrophic harm marked Acceptable — confirm risk-benefit rationale is documented in the risk file',x:h.label});
+  // Watch: edges with severity-4+ harm marked Acceptable — confirm risk-benefit rationale
+  allSitHarmEdges().forEach(e=>{
+    const h=nodes.find(n=>n.id===e.to);
+    if(h&&h.severity>=4&&e.assessment==='Acceptable'){
+      watch.push({w:'Serious/catastrophic harm path marked Acceptable — confirm risk-benefit rationale is documented',x:`${nodes.find(n=>n.id===e.from)?.label.substring(0,30)} → ${h.label.substring(0,30)}`});
+    }
   });
 
   function sec(title,items,cls,ch){
@@ -1781,7 +2126,12 @@ function updList(){
     html+=`<div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:${TS[k].tag};padding:5px 2px 3px;font-family:'IBM Plex Mono',monospace;display:flex;justify-content:space-between"><span>${l}</span><span style="color:var(--text3);font-weight:400">${g[k].length}</span></div>`;
     g[k].forEach(n=>{
       const sel=n===selected?' sel':'';
-      const iz=zone(n.severity,harmWorstOcc(n)),pz=zone(n.postSeverity,n.postOccurrence);
+      const iz=zone(n.severity,harmWorstOcc(n));
+      // Residual zone: worst-case across inbound Situation→Harm edges
+      const postZones=k==='harm'?edges
+        .filter(e=>e.to===n.id&&nodes.find(x=>x.id===e.from)?.type==='situation')
+        .map(e=>zone(e.postSeverity,e.postOccurrence)).filter(Boolean):[];
+      const pz=postZones.length?Math.max(...postZones):null;
       const zp=k==='harm'?`${iz?`<span class="zpill z${iz}">Init ${ZS[iz]}</span> `:''}${pz?`<span class="zpill z${pz}">Post ${ZS[pz]}</span>`:''}`:'' ;
       // Connection counts
       const outCount=edges.filter(e=>e.from===n.id).length;
@@ -1834,11 +2184,15 @@ function autoLayout(){
   });
   c.harm.sort((a,b)=>(harmSit[a.id]??999)-(harmSit[b.id]??999)||a.id-b.id);
 
-  // Sort controls by the harm they connect from
+  // Sort controls: by the harm of the first Situation→Harm edge they're attached to.
+  // (Schema v2: controls are attached via edge metadata, not via Harm→Control edges.)
   const ctrlHarm={};
-  edges.forEach(e=>{
-    const f=nodes.find(n=>n.id===e.from),t=nodes.find(n=>n.id===e.to);
-    if(f&&t&&f.type==='harm'&&t.type==='control'&&!ctrlHarm[t.id]) ctrlHarm[t.id]=c.harm.findIndex(h=>h.id===f.id);
+  allSitHarmEdges().forEach(e=>{
+    (e.controls||[]).forEach(att=>{
+      if(ctrlHarm[att.controlId]===undefined){
+        ctrlHarm[att.controlId]=c.harm.findIndex(h=>h.id===e.to);
+      }
+    });
   });
   c.control.sort((a,b)=>(ctrlHarm[a.id]??999)-(ctrlHarm[b.id]??999)||a.id-b.id);
 
@@ -2135,14 +2489,14 @@ function doExportExcel(includeNotes){
     });
 
     // Build rows from the diagram.
-    // Group by hazard → situation; emit one row per Situation→Harm edge.
+    // Group by hazard → situation → Situation→Harm edge; emit one row per attached control.
+    // Schema v2: controls + post-control fields live on the Situation→Harm edge.
     const hazards=nodes.filter(n=>n.type==='hazard').sort((a,b)=>a.id-b.id);
     const sitsForHazard=h=>edges.filter(e=>e.from===h.id).map(e=>nodes.find(n=>n.id===e.to)).filter(n=>n&&n.type==='situation');
     const harmEdgesForSit=s=>edges.filter(e=>e.from===s.id).map(e=>{
       const harm=nodes.find(n=>n.id===e.to);
-      return harm&&harm.type==='harm'?{harm,occurrence:e.occurrence}:null;
+      return harm&&harm.type==='harm'?{harm,edge:e}:null;
     }).filter(Boolean);
-    const ctrlsForHarm=h=>edges.filter(e=>e.from===h.id).map(e=>nodes.find(n=>n.id===e.to)).filter(n=>n&&n.type==='control');
 
     // Column widths (used for row-height estimation as well as set on the sheet).
     // Column I (Risk Control Measures) and J (Verification of Effectiveness)
@@ -2184,10 +2538,11 @@ function doExportExcel(includeNotes){
         if(!harms.length)continue;
         const sitStartRow=row;
         let isFirstHarmRowInSit=true;
-        for(const {harm,occurrence} of harms){
-          const ctrls=ctrlsForHarm(harm);
-          // Emit one row per control; if no controls, emit one row with blank I/J.
-          const ctrlRowCount=Math.max(1,ctrls.length);
+        for(const {harm,edge} of harms){
+          const occurrence=edge.occurrence;
+          const attachments=edgeAttachments(edge);  // [{control, verification}, ...]
+          // Emit one row per attached control; if no controls, emit one row with blank I/J.
+          const ctrlRowCount=Math.max(1,attachments.length);
           const harmStartRow=row;
 
           // ID column: per-situation. "{hazIdx}.{sitIdx:03d}"  e.g. "1.001"
@@ -2197,13 +2552,15 @@ function doExportExcel(includeNotes){
           const harmCell=harm.severity?`${harm.label} - ${severityName(harm.severity)}`:harm.label;
 
           for(let ci=0;ci<ctrlRowCount;ci++){
-            const ctrl=ctrls[ci];  // may be undefined if harm has no controls
+            const att=attachments[ci];  // may be undefined if edge has no controls
+            const ctrl=att?att.control:null;
             const isFirstCtrlRowInHarm=(ci===0);
 
             // I = Risk Control label (one per row)
             const ctrlLabel=ctrl?(ctrl.label||''):'';
-            // J = Verification text for this control
-            const verification=ctrl?(ctrl.verification||''):'';
+            // J = Effective verification text for this attachment
+            // (per-attachment override falls back to control's default verification)
+            const verification=att?att.verification:'';
 
             // O = Notes content for this specific row
             let notesCell='';
@@ -2211,6 +2568,7 @@ function doExportExcel(includeNotes){
               const noteParts=[];
               if(sit.notes&&isFirstHarmRowInSit&&isFirstCtrlRowInHarm)noteParts.push('Situation: '+sit.notes);
               if(harm.notes&&isFirstCtrlRowInHarm)noteParts.push('Harm: '+harm.notes);
+              if(edge.notes&&isFirstCtrlRowInHarm)noteParts.push('Edge: '+edge.notes);
               if(ctrl&&ctrl.notes)noteParts.push('Control: '+ctrl.notes);
               notesCell=noteParts.join('\n\n');
             }
@@ -2218,56 +2576,62 @@ function doExportExcel(includeNotes){
             // ── Cells ───────────────────────────────────────────────
             // A, B, C, D: only populate on the first row of the situation
             // (the remaining situation rows leave them blank — visually merged later).
+            // vertical:'top' so the situation label sits at the start of the merge,
+            // making it obvious which control rows belong to which situation.
             const sitFirstRow=(isFirstHarmRowInSit&&isFirstCtrlRowInHarm);
-            setCell(ws,'A'+row,sitFirstRow?idStr:'',{font:FONT_DATA,alignment:{vertical:'center'},border:BORDER_THIN});
-            setCell(ws,'B'+row,sitFirstRow?hz.label:'',{font:FONT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
-            setCell(ws,'C'+row,sitFirstRow?(sit.sequence||''):'',{font:FONT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
-            setCell(ws,'D'+row,sitFirstRow?sit.label:'',{font:FONT_DATA,alignment:{vertical:'center',wrapText:true},border:BORDER_THIN});
+            setCell(ws,'A'+row,sitFirstRow?idStr:'',{font:FONT_DATA,alignment:{vertical:'top'},border:BORDER_THIN});
+            setCell(ws,'B'+row,sitFirstRow?hz.label:'',{font:FONT_DATA,alignment:{vertical:'top',wrapText:true},border:BORDER_THIN});
+            setCell(ws,'C'+row,sitFirstRow?(sit.sequence||''):'',{font:FONT_DATA,alignment:{vertical:'top',wrapText:true},border:BORDER_THIN});
+            setCell(ws,'D'+row,sitFirstRow?sit.label:'',{font:FONT_DATA,alignment:{vertical:'top',wrapText:true},border:BORDER_THIN});
 
             // E, F, G, H, K, L, M, N: harm-level. Populated only on the harm's
             // first control row; later control rows leave them blank (visually merged).
-            setCell(ws,'E'+row,isFirstCtrlRowInHarm?harmCell:'',{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+            // vertical:'top' anchors the harm label / severity / risk classification to
+            // the first row of the merge, beside the first risk control row — so the
+            // reader can see at a glance which control rows belong to which harm.
+            setCell(ws,'E'+row,isFirstCtrlRowInHarm?harmCell:'',{font:FONT_DATA,alignment:{horizontal:'left',vertical:'top',wrapText:true},border:BORDER_THIN});
             if(isFirstCtrlRowInHarm&&harm.severity!=null){
-              setCell(ws,'F'+row,harm.severity,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+              setCell(ws,'F'+row,harm.severity,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }else{
-              setCell(ws,'F'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+              setCell(ws,'F'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }
             if(isFirstCtrlRowInHarm&&occurrence!=null){
-              setCell(ws,'G'+row,occurrence,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+              setCell(ws,'G'+row,occurrence,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }else{
-              setCell(ws,'G'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+              setCell(ws,'G'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }
             // H = Initial Risk Classification (formula on first harm row only)
             if(isFirstCtrlRowInHarm){
-              setCell(ws,'H'+row,null,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN},riskClassFormula('F','G',row));
+              setCell(ws,'H'+row,null,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN},riskClassFormula('F','G',row));
             }else{
-              setCell(ws,'H'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+              setCell(ws,'H'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }
 
-            // I = Risk Control Measure (per-row)
+            // I = Risk Control Measure (per-row, NOT merged — keep center alignment)
             setCell(ws,'I'+row,ctrlLabel,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
-            // J = Verification (per-row)
+            // J = Verification (per-row, NOT merged — keep center alignment)
             setCell(ws,'J'+row,verification,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
 
-            // K, L, M, N: harm-level (first-row-only)
-            if(isFirstCtrlRowInHarm&&harm.postSeverity!=null){
-              setCell(ws,'K'+row,harm.postSeverity,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+            // K, L, M, N: per-edge post-control fields (schema v2 — were on harm node in v1).
+            // vertical:'top' for same reason as E-H.
+            if(isFirstCtrlRowInHarm&&edge.postSeverity!=null){
+              setCell(ws,'K'+row,edge.postSeverity,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }else{
-              setCell(ws,'K'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+              setCell(ws,'K'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }
-            if(isFirstCtrlRowInHarm&&harm.postOccurrence!=null){
-              setCell(ws,'L'+row,harm.postOccurrence,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+            if(isFirstCtrlRowInHarm&&edge.postOccurrence!=null){
+              setCell(ws,'L'+row,edge.postOccurrence,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }else{
-              setCell(ws,'L'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+              setCell(ws,'L'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }
             if(isFirstCtrlRowInHarm){
-              setCell(ws,'M'+row,null,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN},riskClassFormula('K','L',row));
+              setCell(ws,'M'+row,null,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN},riskClassFormula('K','L',row));
             }else{
-              setCell(ws,'M'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'center'},border:BORDER_THIN});
+              setCell(ws,'M'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }
-            setCell(ws,'N'+row,isFirstCtrlRowInHarm?(harm.assessment||''):'',{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+            setCell(ws,'N'+row,isFirstCtrlRowInHarm?(edge.assessment||''):'',{font:FONT_DATA,alignment:{horizontal:'left',vertical:'top',wrapText:true},border:BORDER_THIN});
 
-            // O = Notes (per-row content; not merged)
+            // O = Notes (per-row content; not merged — keep center alignment)
             if(includeNotes){
               setCell(ws,'O'+row,notesCell,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
             }
@@ -2293,14 +2657,14 @@ function doExportExcel(includeNotes){
               startRow:harmStartRow,
               endRow:harmEndRow,
               harmCellHeight:estimateHeight(harmCell,colWidths.E),
-              assessmentHeight:estimateHeight(harm.assessment||'',colWidths.N)
+              assessmentHeight:estimateHeight(edge.assessment||'',colWidths.N)
             });
           }else{
             // Single-row harm — still account for harm-cell height on its row
             perRowHeight[harmStartRow]=Math.max(
               perRowHeight[harmStartRow]||0,
               estimateHeight(harmCell,colWidths.E),
-              estimateHeight(harm.assessment||'',colWidths.N)
+              estimateHeight(edge.assessment||'',colWidths.N)
             );
           }
 
@@ -2422,16 +2786,116 @@ function doRestore(ev){
   reader.onload=e=>{try{
     const data=JSON.parse(e.target.result);
     if(data.nodes&&data.edges){
-      pushUndo();nodes=data.nodes;edges=data.edges;
+      pushUndo();
+      // Migrate schema v1 → v2 if needed.
+      const migrated=migrateBackupV1toV2(data.nodes,data.edges);
+      nodes=migrated.nodes;edges=migrated.edges;
       nextId=Math.max(...nodes.map(n=>n.id),0)+1;
       selected=null;selEdge=null;clearFocus();closeEdgePopup();
       document.getElementById('edit-panel').style.display='none';
-      updAll();fitScreen();toast('Restored '+nodes.length+' nodes');
+      updAll();fitScreen();
+      if(migrated.didMigrate){
+        toast('Restored & migrated v1 → v2 ('+migrated.notes+')');
+      } else {
+        toast('Restored '+nodes.length+' nodes');
+      }
     }else{
       alert('Not a valid backup file (missing nodes/edges).');
     }
   }catch(err){alert('Invalid file: '+err.message);}};
   reader.readAsText(file);ev.target.value='';
+}
+
+// Migrate a backup from schema v1 (controls connected via Harm→Control edges; post-control
+// fields on harm nodes) to schema v2 (controls attached via Situation→Harm edge metadata;
+// post-control fields on Situation→Harm edges).
+//
+// Detection: presence of any harm→control edge OR any harm node carrying postSeverity/
+// postOccurrence/assessment fields.
+//
+// Migration policy (preserves what was visible in v1):
+//   • For each Harm→Control edge: attach the control to EVERY Situation→Harm edge feeding
+//     that harm. The user will need to prune controls from situations they don't actually
+//     apply to. Each migrated attachment is flagged with {migrated:true}.
+//   • For each harm with postSeverity/postOccurrence/assessment: copy those values to
+//     every Situation→Harm edge feeding that harm. Each migrated edge is flagged with
+//     {_migratedPost:true}.
+//   • Drop Harm→Control edges from the edges array.
+//   • Strip post-control fields off harm nodes.
+//   • Ensure every Situation→Harm edge has a `controls` array (even if empty).
+function migrateBackupV1toV2(rawNodes,rawEdges){
+  const nodes=rawNodes.map(n=>({...n}));
+  let edges=rawEdges.map(e=>({...e}));
+  const nodeMap=new Map(nodes.map(n=>[n.id,n]));
+
+  // Detect v1
+  const hasHarmCtrlEdge=edges.some(e=>{
+    const f=nodeMap.get(e.from),t=nodeMap.get(e.to);
+    return f&&t&&f.type==='harm'&&t.type==='control';
+  });
+  const hasV1PostFields=nodes.some(n=>n.type==='harm'&&(n.postSeverity||n.postOccurrence||n.assessment));
+  if(!hasHarmCtrlEdge&&!hasV1PostFields){
+    // Already v2 (or never had these fields). Just normalize: ensure each Situation→Harm
+    // edge has a `controls` array.
+    edges.forEach(e=>{
+      const f=nodeMap.get(e.from),t=nodeMap.get(e.to);
+      if(f&&t&&f.type==='situation'&&t.type==='harm'&&!Array.isArray(e.controls)){
+        e.controls=[];
+      }
+    });
+    return {nodes,edges,didMigrate:false,notes:''};
+  }
+
+  let attachmentsMigrated=0,postsMigrated=0;
+  const sitHarmEdges=edges.filter(e=>{
+    const f=nodeMap.get(e.from),t=nodeMap.get(e.to);
+    return f&&t&&f.type==='situation'&&t.type==='harm';
+  });
+  // Ensure each Situation→Harm edge has a controls array
+  sitHarmEdges.forEach(e=>{if(!Array.isArray(e.controls))e.controls=[];});
+
+  // Step 1: migrate Harm→Control edges to per-edge attachments
+  edges.forEach(e=>{
+    const f=nodeMap.get(e.from),t=nodeMap.get(e.to);
+    if(!f||!t||f.type!=='harm'||t.type!=='control')return;
+    // Attach this control to every Situation→Harm edge feeding f
+    const inboundShEdges=sitHarmEdges.filter(sh=>sh.to===f.id);
+    inboundShEdges.forEach(sh=>{
+      if(!sh.controls.some(c=>c.controlId===t.id)){
+        sh.controls.push({controlId:t.id,verification:'',migrated:true});
+        attachmentsMigrated++;
+      }
+    });
+  });
+  // Drop Harm→Control edges
+  edges=edges.filter(e=>{
+    const f=nodeMap.get(e.from),t=nodeMap.get(e.to);
+    return !(f&&t&&f.type==='harm'&&t.type==='control');
+  });
+
+  // Step 2: copy harm-level post-control fields to every inbound Situation→Harm edge
+  nodes.filter(n=>n.type==='harm').forEach(h=>{
+    const ps=h.postSeverity,po=h.postOccurrence,as=h.assessment;
+    if(!ps&&!po&&!as)return;
+    edges.forEach(e=>{
+      if(e.to===h.id){
+        const f=nodeMap.get(e.from);
+        if(f&&f.type==='situation'){
+          if(ps&&!e.postSeverity){e.postSeverity=ps;e._migratedPost=true;}
+          if(po&&!e.postOccurrence){e.postOccurrence=po;e._migratedPost=true;}
+          if(as&&!e.assessment){e.assessment=as;e._migratedPost=true;}
+          if(e._migratedPost)postsMigrated++;
+        }
+      }
+    });
+    // Strip post-control fields off the harm node
+    delete h.postSeverity;
+    delete h.postOccurrence;
+    delete h.assessment;
+  });
+
+  const notes=`${attachmentsMigrated} attachment${attachmentsMigrated!==1?'s':''}, ${postsMigrated} edge post-field${postsMigrated!==1?'s':''}`;
+  return {nodes,edges,didMigrate:true,notes};
 }
 
 // ── Toast ──────────────────────────────────────────────────────────
@@ -3107,6 +3571,10 @@ function loadSample(){
   nextId=128;
   selected=null;
   document.getElementById('edit-panel').style.display='none';
+  // The sample literal is still in v1 shape (Harm→Control edges, post-control fields on
+  // harm nodes). Run the migration to convert to v2 so the user sees the new model.
+  const migrated=migrateBackupV1toV2(nodes,edges);
+  nodes=migrated.nodes;edges=migrated.edges;
   clearFocus();closeEdgePopup();updAll();
   setTimeout(()=>{
     autoLayout();
@@ -3116,27 +3584,31 @@ function loadSample(){
 }
 
 // ── Connection rules (per ISO 14971 risk management process) ───────
-// Keys are source node type; values are the ONLY allowed target types.
+// Schema v2: Harm→Control edges removed. Controls are reusable, free-standing
+// nodes attached to a Situation→Harm edge via the edge's `controls` array.
+// Attachments are edited via the Situation→Harm edge edit panel, not by
+// drawing edges from a node to a Control.
 const ALLOWED_TARGETS = {
   hazard:    ['situation'],
   situation: ['harm'],
-  harm:      ['control'],
-  control:   [],      // terminal — no outgoing connections
+  harm:      [],      // terminal — controls attach via Situation→Harm edge metadata
+  control:   [],      // terminal — attached to edges, not via outgoing connections
 };
 const CONNECTION_RULE_MSG = {
   'hazard→harm':      'A Hazard must connect to a Hazardous Situation, not directly to a Harm.',
-  'hazard→control':   'A Hazard must connect to a Hazardous Situation first.',
+  'hazard→control':   'Controls are attached to a Situation→Harm edge. Select the edge to attach controls.',
   'hazard→hazard':    'Hazards cannot connect to each other.',
   'situation→situation': 'Situations cannot connect to each other.',
-  'situation→hazard': 'Situations connect downstream to Harms or Controls, not back to Hazards.',
+  'situation→hazard': 'Situations connect downstream to Harms, not back to Hazards.',
+  'situation→control':'Controls are attached to a Situation→Harm edge. Select the edge to attach controls.',
   'harm→hazard':      'Harms are terminal — they have no outgoing connections.',
   'harm→situation':   'Harms are terminal — they have no outgoing connections.',
+  'harm→control':     'Controls are attached to the Situation→Harm edge, not from the Harm node. Select a Situation→Harm edge.',
   'harm→harm':        'Harms are terminal — they have no outgoing connections.',
-  'harm→control':     'Already connected, or use the connect tool to link this Harm to a Risk Control.',
-  'control→hazard':   'Risk Controls are terminal — they have no outgoing connections.',
-  'control→situation':'Risk Controls are terminal — they have no outgoing connections.',
-  'control→harm':     'Risk Controls are terminal — they have no outgoing connections.',
-  'control→control':  'Risk Controls are terminal — they have no outgoing connections.',
+  'control→hazard':   'Risk Controls are attached to Situation→Harm edges, not via direct connections.',
+  'control→situation':'Risk Controls are attached to Situation→Harm edges, not via direct connections.',
+  'control→harm':     'Risk Controls are attached to Situation→Harm edges, not via direct connections.',
+  'control→control':  'Risk Controls cannot connect to each other.',
 };
 
 function isValidConnection(srcType, dstType) {
@@ -3200,7 +3672,7 @@ canvas.addEventListener('mousedown',e=>{
     dragOff={x:w.x-node.x,y:w.y-node.y};
   } else {
     const edge=edgeAt(mx,my);
-    if(edge){const s=nodes.find(n=>n.id===edge.from),d=nodes.find(n=>n.id===edge.to);if(s&&d&&s.type==='situation'&&d.type==='harm'){showEdgePopup(edge,mx,my);return;}}
+    if(edge){const s=nodes.find(n=>n.id===edge.from),d=nodes.find(n=>n.id===edge.to);if(s&&d&&s.type==='situation'&&d.type==='harm'){showEdgePopup(edge);return;}}
     selectNode(null);panStart={x:mx,y:my};panBase={...pan};
   }
 });
@@ -3410,10 +3882,19 @@ async function loadFromSupabase(){
     }
     if(error)throw error;
     if(data&&data.data&&data.data.nodes&&data.data.nodes.length>0){
-      nodes=data.data.nodes;edges=data.data.edges;
+      // Migrate v1 → v2 if needed (transparent — the live diagram may still be v1 shape).
+      const migrated=migrateBackupV1toV2(data.data.nodes,data.data.edges);
+      nodes=migrated.nodes;edges=migrated.edges;
       nextId=Math.max(...nodes.map(n=>n.id),0)+1;
-      lastSavedHash=JSON.stringify(data.data);
-      updAll();setTimeout(fitScreen,80);setSyncBadge('saved','Loaded');
+      lastSavedHash=JSON.stringify({nodes,edges});
+      updAll();setTimeout(fitScreen,80);
+      if(migrated.didMigrate){
+        setSyncBadge('saved','Loaded & migrated v1 → v2');
+        // Persist the migrated form so subsequent loads are pure v2
+        if(sb)saveToSupabase('Schema v1 → v2 migration');
+      } else {
+        setSyncBadge('saved','Loaded');
+      }
     }else{setTimeout(loadSample,120);setSyncBadge('saved','New diagram');}
   }catch(e){setSyncBadge('err','Load failed');console.error(e);}
 }
@@ -3542,7 +4023,17 @@ async function sendAiPrompt(){
 The diagram has nodes and edges. You must respond ONLY with a valid JSON object — no explanation, no markdown, no code fences.
 
 Node types: hazard, situation, harm, control
-Edge rules: hazard→situation, situation→harm, situation→control only. harm and control are terminal.
+Edge rules:
+  • hazard → situation
+  • situation → harm (this edge carries occurrence, post-control values, assessment, and attached controls)
+  • harm and control are terminal — they have NO outgoing edges.
+  • Controls are NOT connected via edges. Instead, controls are attached to a Situation→Harm edge using the attach_control / detach_control / set_attachment_verification operations.
+
+Field locations (schema v2):
+  • severity lives on the harm node (it is invariant — same severity wherever this harm appears)
+  • occurrence, postSeverity, postOccurrence, assessment live on the Situation→Harm edge (one per (situation, harm) pair)
+  • verification (default) lives on the control node; per-attachment verification override lives on the edge.controls entry
+
 Severity scale: 1=Negligible, 2=Minor, 3=Moderate, 4=Serious, 5=Catastrophic
 Occurrence scale: 1=Improbable, 2=Remote, 3=Occasional, 4=Common, 5=Frequent
 Assessment values: "Acceptable", "Not Acceptable", "Broadly Acceptable", or ""
@@ -3556,17 +4047,21 @@ Respond with ONLY this JSON structure:
 {
   "actions": [
     {"op":"add_node","type":"harm","label":"...","severity":3,"x":200,"y":100},
-    {"op":"add_node","type":"situation","label":"...","x":-150,"y":100},
+    {"op":"add_node","type":"control","label":"...","verification":"default verification text"},
     {"op":"add_edge","from":5,"to":12},
     {"op":"update_node","id":5,"label":"new label","severity":4},
     {"op":"delete_node","id":7},
     {"op":"delete_edge","from":3,"to":7},
-    {"op":"set_occurrence","from":5,"to":12,"occurrence":2}
+    {"op":"set_edge_field","from":5,"to":12,"occurrence":2,"postSeverity":3,"postOccurrence":1,"assessment":"Acceptable","notes":"per-path note"},
+    {"op":"attach_control","from":5,"to":12,"controlId":20,"verification":"optional per-attachment override"},
+    {"op":"detach_control","from":5,"to":12,"controlId":20}
   ],
   "summary": "One sentence describing what was done."
 }
 
-Only include the fields relevant to each action. For add_node, x and y are optional (auto-placed if omitted).`;
+Only include the fields relevant to each action. For add_node, x and y are optional (auto-placed if omitted).
+Use set_edge_field to set occurrence and post-control values on a Situation→Harm edge.
+Use attach_control to add a control to a Situation→Harm edge; the controlId must reference an existing control node.`;
 
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -3601,36 +4096,82 @@ Only include the fields relevant to each action. For add_node, x and y are optio
         const n = {
           id, type:action.type, label:action.label||'New node',
           x, y, w:190, h:60,
-          severity:action.severity||null, postSeverity:null, postOccurrence:null,
-          sequence:'', notes:action.notes||'', assessment:'', verification:''
+          severity:action.severity||null,
+          sequence:'',
+          notes:action.notes||'',
+          verification:action.verification||'',
+          evidence:[]
         };
         nodes.push(n); measure(n);
       } else if(action.op === 'add_edge'){
         const from = addedIds[action.from] || action.from;
         const to = addedIds[action.to] || action.to;
         if(!edges.some(e=>e.from===from&&e.to===to)){
-          edges.push({from, to, occurrence:action.occurrence||null});
+          edges.push({from, to, occurrence:action.occurrence||null, controls:[]});
         }
       } else if(action.op === 'update_node'){
         const n = nodes.find(n=>n.id===action.id);
         if(n){
           if(action.label !== undefined) n.label = action.label;
           if(action.severity !== undefined) n.severity = action.severity;
-          if(action.postSeverity !== undefined) n.postSeverity = action.postSeverity;
-          if(action.postOccurrence !== undefined) n.postOccurrence = action.postOccurrence;
-          if(action.assessment !== undefined) n.assessment = action.assessment;
           if(action.notes !== undefined) n.notes = action.notes;
           if(action.verification !== undefined) n.verification = action.verification;
+          if(action.sequence !== undefined) n.sequence = action.sequence;
           measure(n);
         }
       } else if(action.op === 'delete_node'){
+        // Also strip any references to this node from edge.controls arrays
         nodes = nodes.filter(n=>n.id!==action.id);
         edges = edges.filter(e=>e.from!==action.id&&e.to!==action.id);
+        edges.forEach(e=>{
+          if(Array.isArray(e.controls)){
+            e.controls = e.controls.filter(c=>c.controlId!==action.id);
+          }
+        });
       } else if(action.op === 'delete_edge'){
-        edges = edges.filter(e=>!(e.from===action.from&&e.to===action.to));
-      } else if(action.op === 'set_occurrence'){
-        const e = edges.find(e=>e.from===action.from&&e.to===action.to);
-        if(e) e.occurrence = action.occurrence;
+        const from = addedIds[action.from] || action.from;
+        const to = addedIds[action.to] || action.to;
+        edges = edges.filter(e=>!(e.from===from&&e.to===to));
+      } else if(action.op === 'set_occurrence' || action.op === 'set_edge_field'){
+        // set_occurrence is back-compat alias; set_edge_field is the canonical name.
+        const from = addedIds[action.from] || action.from;
+        const to = addedIds[action.to] || action.to;
+        const e = edges.find(x=>x.from===from&&x.to===to);
+        if(e){
+          if(action.occurrence !== undefined) e.occurrence = action.occurrence;
+          if(action.postSeverity !== undefined) e.postSeverity = action.postSeverity;
+          if(action.postOccurrence !== undefined) e.postOccurrence = action.postOccurrence;
+          if(action.assessment !== undefined) e.assessment = action.assessment;
+          if(action.notes !== undefined) e.notes = action.notes;
+        }
+      } else if(action.op === 'attach_control'){
+        const from = addedIds[action.from] || action.from;
+        const to = addedIds[action.to] || action.to;
+        const controlId = addedIds[action.controlId] || action.controlId;
+        const e = edges.find(x=>x.from===from&&x.to===to);
+        if(e){
+          if(!Array.isArray(e.controls)) e.controls = [];
+          if(!e.controls.some(c=>c.controlId===controlId)){
+            e.controls.push({controlId, verification:action.verification||''});
+          }
+        }
+      } else if(action.op === 'detach_control'){
+        const from = addedIds[action.from] || action.from;
+        const to = addedIds[action.to] || action.to;
+        const controlId = addedIds[action.controlId] || action.controlId;
+        const e = edges.find(x=>x.from===from&&x.to===to);
+        if(e && Array.isArray(e.controls)){
+          e.controls = e.controls.filter(c=>c.controlId!==controlId);
+        }
+      } else if(action.op === 'set_attachment_verification'){
+        const from = addedIds[action.from] || action.from;
+        const to = addedIds[action.to] || action.to;
+        const controlId = addedIds[action.controlId] || action.controlId;
+        const e = edges.find(x=>x.from===from&&x.to===to);
+        if(e && Array.isArray(e.controls)){
+          const att = e.controls.find(c=>c.controlId===controlId);
+          if(att) att.verification = action.verification||'';
+        }
       }
     }
 
