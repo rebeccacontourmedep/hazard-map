@@ -64,6 +64,11 @@ canvas{flex:1;display:block;cursor:default;min-width:0;}
 /* Hide canvas-only toolbar buttons + the filter bar when in matrix view */
 body.view-matrix .graph-only{display:none !important;}
 body.view-matrix .filter-bar{display:none;}
+/* When the edit panel (node or edge) is open, hide the tab content + search box
+   so the edit form gets the full panel height. Tab buttons remain visible at the
+   top so the user can switch contexts (clicking a tab closes the edit panel). */
+body.editing .tab-body{display:none;}
+body.editing #search-wrap{display:none;}
 
 /* Matrix view container — fills the same area as the canvas */
 .matrix-view{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--surface);}
@@ -1300,6 +1305,15 @@ function switchTab(tab){
   });
   // Search bar only useful on Nodes tab
   document.getElementById('search-wrap').style.display=tab==='nodes'?'':'none';
+  // Clicking any tab while editing closes the edit panels and reveals tab content.
+  // (Without this, the body.editing class would keep tab content hidden.)
+  if(document.body.classList.contains('editing')){
+    document.getElementById('edit-panel').style.display='none';
+    document.getElementById('edge-edit-panel').style.display='none';
+    selected=null;selEdge=null;activePopupEdge=null;
+    setEditMode(false);
+    draw();
+  }
   if(tab==='gaps')updGaps();
   if(tab==='ft')updFaultTree();
   if(tab==='mx')updMatrix();
@@ -1345,9 +1359,16 @@ function addNode(wx,wy,type){
   nodes.push(n);selectNode(n);updAll();draw();
 }
 
+// Toggle the body's "editing" class so CSS can hide the tab content + search bar
+// when an edit panel (node or edge) is open, giving the edit form the full panel height.
+function setEditMode(on){
+  document.body.classList.toggle('editing', !!on);
+}
+
 function selectNode(n){
   selected=n;selEdge=null;closeEdgePopup();
-  if(n)showEdit(n);else document.getElementById('edit-panel').style.display='none';
+  if(n){showEdit(n);setEditMode(true);}
+  else{document.getElementById('edit-panel').style.display='none';setEditMode(false);}
   updList();draw();
   if(activeView==='matrix'&&typeof highlightMatrixSelection==='function')highlightMatrixSelection();
 }
@@ -1854,6 +1875,7 @@ function showEdgeEdit(e){
   document.getElementById('edit-panel').style.display='none';
   const panel=document.getElementById('edge-edit-panel');
   panel.style.display='block';
+  setEditMode(true);
   const s=nodes.find(n=>n.id===e.from);
   const h=nodes.find(n=>n.id===e.to);
   const sLbl=s?s.label:'?',hLbl=h?h.label:'?';
@@ -2018,6 +2040,9 @@ function closeEdgePopup(){
   document.getElementById('edge-edit-panel').style.display='none';
   activePopupEdge=null;
   if(selEdge){selEdge=null;draw();}
+  // Only clear edit-mode if no node is also selected (e.g. selectNode → closeEdgePopup
+  // then immediately opens the node edit panel — keep editing class on)
+  if(!selected)setEditMode(false);
 }
 // Back-compat shim — old code paths called saveEdgeOcc
 function saveEdgeOcc(){saveEdgeField();}
