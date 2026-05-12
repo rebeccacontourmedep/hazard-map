@@ -56,6 +56,52 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 .main{display:flex;flex:1;overflow:hidden;position:relative;}
 canvas{flex:1;display:block;cursor:default;min-width:0;}
 
+/* View toggle (Graph | Matrix) in the toolbar */
+.view-toggle{display:inline-flex;border:1px solid var(--border2);border-radius:4px;overflow:hidden;margin-right:2px;}
+.view-toggle .view-btn{border:none;border-radius:0;padding:3px 10px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;background:var(--surface2);color:var(--text2);font-family:'IBM Plex Mono',monospace;}
+.view-toggle .view-btn:hover{background:var(--hover);}
+.view-toggle .view-btn.active{background:var(--accent);color:#fff;}
+/* Hide canvas-only toolbar buttons when in matrix view */
+body.view-matrix .graph-only{display:none !important;}
+
+/* Matrix view container — fills the same area as the canvas */
+.matrix-view{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--surface);}
+.matrix-col-filter{display:flex;align-items:center;gap:5px;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.matrix-col-filter .mcfbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;border:1px solid var(--border2);background:var(--surface);color:var(--text3);cursor:pointer;transition:all .12s;}
+.matrix-col-filter .mcfbtn:hover{color:var(--text2);}
+.matrix-col-filter .mcfbtn.off{opacity:.38;text-decoration:line-through;}
+.matrix-col-filter .mcfbtn.on{color:var(--text);background:var(--surface);border-color:var(--border2);}
+
+.matrix-table-wrap{flex:1;overflow:auto;padding:0;}
+.matrix-table{border-collapse:collapse;width:100%;font-size:11.5px;font-family:'IBM Plex Sans',sans-serif;table-layout:auto;}
+.matrix-table thead th{position:sticky;top:0;z-index:5;background:#d1d9e7;color:var(--text);font-size:10px;font-weight:700;letter-spacing:.04em;padding:6px 8px;text-align:left;border:1px solid var(--border2);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;white-space:normal;line-height:1.2;}
+.matrix-table thead .col-group{background:#b8c5dc;font-size:10px;text-align:center;}
+.matrix-table td{padding:5px 8px;border:1px solid var(--border);vertical-align:top;background:var(--surface);max-width:280px;overflow-wrap:break-word;cursor:pointer;transition:background .08s;}
+.matrix-table tr:hover td{background:#f0f4ff;}
+.matrix-table td.col-id      {font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text2);text-align:center;white-space:nowrap;background:var(--surface2);}
+.matrix-table td.col-hazard  {background:rgba(192,57,43,.07);color:var(--hazard);font-weight:500;}
+.matrix-table td.col-sit     {background:rgba(184,110,0,.04);}
+.matrix-table td.col-harm    {background:rgba(26,122,74,.05);font-weight:500;}
+.matrix-table td.col-num     {text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:nowrap;}
+.matrix-table td.col-ctrl    {background:rgba(37,99,235,.04);font-size:11px;}
+.matrix-table td.col-verif   {font-size:10.5px;color:var(--text2);font-style:italic;}
+.matrix-table td.col-assess  {white-space:nowrap;font-weight:500;}
+.matrix-table .zone-pill     {display:inline-block;padding:1px 6px;border-radius:3px;font-size:9.5px;font-weight:700;letter-spacing:.04em;font-family:'IBM Plex Mono',monospace;}
+.matrix-table .zone-z1       {background:rgba(22,163,74,.18);color:#15803d;}
+.matrix-table .zone-z2       {background:rgba(217,119,6,.18);color:#a16207;}
+.matrix-table .zone-z3       {background:rgba(220,38,38,.18);color:#b91c1c;}
+.matrix-table .matrix-empty  {color:var(--text3);font-style:italic;font-size:10.5px;}
+.matrix-table tr.matrix-selected td{background:#dbeafe !important;}
+.matrix-table tr.matrix-selected td.col-id{background:#bfdbfe !important;}
+.matrix-table .ctrl-row + .ctrl-row td.col-id,
+.matrix-table .ctrl-row + .ctrl-row td.col-hazard,
+.matrix-table .ctrl-row + .ctrl-row td.col-seq,
+.matrix-table .ctrl-row + .ctrl-row td.col-sit{border-top:1px solid transparent;}
+.matrix-table .group-end td{border-bottom:2px solid var(--border2);}
+.matrix-table .review-flag{display:inline-block;font-size:8.5px;background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:2px;font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;margin-left:4px;text-transform:uppercase;}
+.matrix-empty-state{padding:80px 24px;text-align:center;color:var(--text3);font-size:13px;}
+.matrix-empty-state b{color:var(--text2);display:block;margin-bottom:6px;font-size:14px;font-weight:600;}
+
 /* panel */
 .panel{width:240px;min-width:180px;max-width:520px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:row;overflow:hidden;flex-shrink:0;transition:none;position:relative;}
 .panel.collapsed{width:18px;}
@@ -305,6 +351,11 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 <!-- TOOLBAR -->
 <div class="toolbar">
   <span class="tbar-title">Atlas 360 Hazard Map</span>
+  <span class="view-toggle">
+    <button class="btn view-btn active" id="view-graph" onclick="setView('graph')" title="Diagram view (default)">Graph</button>
+    <button class="btn view-btn"        id="view-matrix" onclick="setView('matrix')" title="Tabular view — mirrors the Excel export">Matrix</button>
+  </span>
+  <div class="sep"></div>
   <button class="btn btn-h"    onclick="setAddMode('hazard')">+ Hazard</button>
   <button class="btn btn-s"    onclick="setAddMode('situation')">+ Situation</button>
   <button class="btn btn-harm" onclick="setAddMode('harm')">+ Harm</button>
@@ -315,10 +366,10 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
   <div class="sep"></div>
   <button class="btn" onclick="undo()" title="Ctrl+Z">Undo</button>
   <div class="sep"></div>
-  <button class="btn" onclick="fitScreen()">Fit</button>
-  <button class="btn" onclick="autoLayout()">Layout</button>
-  <button class="btn btn-swimlane" id="swimlane-btn" onclick="toggleSwimlane()" title="Toggle swimlane view">Swimlane</button>
-  <div class="sep"></div>
+  <button class="btn graph-only" onclick="fitScreen()">Fit</button>
+  <button class="btn graph-only" onclick="autoLayout()">Layout</button>
+  <button class="btn btn-swimlane graph-only" id="swimlane-btn" onclick="toggleSwimlane()" title="Toggle swimlane view">Swimlane</button>
+  <div class="sep graph-only"></div>
   <button class="btn" onclick="doBackup()" title="Save a JSON snapshot you can restore later">Backup</button>
   <button class="btn" onclick="triggerRestore()" title="Load a JSON snapshot saved with Backup">Restore</button>
   <input type="file" id="restore-file" accept=".json" style="display:none" onchange="doRestore(event)">
@@ -355,6 +406,21 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 <div class="main">
   <canvas id="canvas"></canvas>
 
+  <!-- Matrix view: tabular display mirroring the Excel export.
+       Hidden by default; shown when setView('matrix') is called. -->
+  <div class="matrix-view" id="matrix-view" style="display:none">
+    <div class="matrix-col-filter" id="matrix-col-filter">
+      <span class="filter-bar-label">Columns:</span>
+      <!-- Populated by renderMatrixColFilter() -->
+    </div>
+    <div class="matrix-table-wrap" id="matrix-table-wrap">
+      <table class="matrix-table" id="matrix-table">
+        <thead id="matrix-thead"></thead>
+        <tbody id="matrix-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Edge edits now live in the right-side edge-edit-panel (schema v2);
        the old floating popup has been removed. -->
 
@@ -367,7 +433,7 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         <button class="ptab active" id="tab-nodes" onclick="switchTab('nodes')">Nodes</button>
         <button class="ptab" id="tab-gaps"  onclick="switchTab('gaps')">Gaps <span id="gap-badge"></span></button>
         <button class="ptab" id="tab-ft"    onclick="switchTab('ft')">Fault tree</button>
-        <button class="ptab" id="tab-mx"    onclick="switchTab('mx')">Matrix</button>
+        <button class="ptab" id="tab-mx"    onclick="switchTab('mx')">Coverage</button>
         <button class="ptab" id="tab-oi"    onclick="switchTab('oi')">Open items</button>
         <button class="ptab" id="tab-al"    onclick="switchTab('al')">Audit log</button>
       </div>
@@ -577,11 +643,12 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 <div class="modal-backdrop" id="export-modal" onclick="if(event.target===this)closeExportModal()">
   <div class="modal" role="dialog" aria-labelledby="export-modal-title">
     <div class="modal-title" id="export-modal-title">Export to Excel (CM-000036-FM)</div>
-    <div class="modal-msg">Exports to the Hazard Analysis Template format. The clean version matches CM-000036-FM exactly. The "With Notes" version adds an extra Notes / References column capturing UN-/REQ-/SOP references and rationale from situation, harm, and control nodes.</div>
+    <div class="modal-msg">Exports to the Hazard Analysis Template format. <b>Clean</b> matches CM-000036-FM exactly (cols A–N). <b>With Notes</b> adds an O column capturing UN-/REQ-/SOP references from the situation, harm, edge, and control. <b>Minimal</b> emits cols A–H only (no controls / verification / post-control / assessment) and collapses to one row per (situation, harm) — useful when the risk-control columns aren't being shown anyway.</div>
     <div class="modal-actions">
       <button class="btn" onclick="closeExportModal()">Cancel</button>
-      <button class="btn primary" onclick="doExportExcel(false)">Clean (template format)</button>
-      <button class="btn" onclick="doExportExcel(true)">With Notes</button>
+      <button class="btn primary" onclick="doExportExcel('clean')">Clean (A–N)</button>
+      <button class="btn" onclick="doExportExcel('notes')">With Notes (A–O)</button>
+      <button class="btn" onclick="doExportExcel('minimal')">Minimal (A–H)</button>
     </div>
   </div>
 </div>
@@ -630,6 +697,19 @@ let activeTab='nodes';
 let searchQuery='';
 
 let gapFilter='all';
+
+// ── Matrix view state ──
+// activeView: 'graph' (canvas) or 'matrix' (table)
+// matrixColumns: which columns are visible in the matrix view
+let activeView='graph';
+let matrixColumns={
+  id:true, hazard:true, seq:true, sit:true, harm:true,
+  initial:true,        // group: severity, occurrence, init risk
+  ctrl:true,           // Risk Control
+  verif:true,          // Verification of Effectiveness
+  residual:true,       // group: post-severity, post-occurrence, post risk
+  assess:true,         // Post-Mitigation Assessment
+};
 
 // ── Swimlane + focus layout state (declared early to avoid TDZ errors) ──
 let swimlaneMode = false;
@@ -1277,6 +1357,7 @@ function selectNode(n){
   selected=n;selEdge=null;closeEdgePopup();
   if(n)showEdit(n);else document.getElementById('edit-panel').style.display='none';
   updList();draw();
+  if(activeView==='matrix'&&typeof highlightMatrixSelection==='function')highlightMatrixSelection();
 }
 
 // Returns array of {situation, occurrence} for all Situation→Harm edges into this harm node
@@ -1618,6 +1699,7 @@ function showEdgeEdit(e){
   refreshAttachedControls(e);
   refreshControlPicker(e);
   updList();draw();
+  if(activeView==='matrix'&&typeof highlightMatrixSelection==='function')highlightMatrixSelection();
 }
 function refreshEdgeZones(e){
   const h=nodes.find(n=>n.id===e.to);
@@ -1948,6 +2030,299 @@ function updFaultTree(){
   el.innerHTML=html;
 }
 
+// ── Full Matrix view (toolbar Graph/Matrix toggle) ──────────────────
+// A spreadsheet-like view of the diagram, mirroring the Excel export.
+// Clicking a cell selects the relevant node or edge and opens its edit panel
+// — same panel used by the Graph view, so all edits happen in one place.
+
+function setView(view){
+  activeView=view;
+  document.getElementById('view-graph').classList.toggle('active',view==='graph');
+  document.getElementById('view-matrix').classList.toggle('active',view==='matrix');
+  const canvas=document.getElementById('canvas');
+  const mv=document.getElementById('matrix-view');
+  if(view==='matrix'){
+    canvas.style.display='none';
+    mv.style.display='flex';
+    document.body.classList.add('view-matrix');
+    document.body.classList.remove('view-graph');
+    renderMatrixColFilter();
+    renderMatrix();
+  }else{
+    canvas.style.display='block';
+    mv.style.display='none';
+    document.body.classList.remove('view-matrix');
+    document.body.classList.add('view-graph');
+    draw();
+  }
+}
+
+// Column-visibility filter chips above the matrix.
+function renderMatrixColFilter(){
+  const el=document.getElementById('matrix-col-filter');
+  // Keep the leading label intact, replace the rest of the children
+  const cols=[
+    {key:'id',       label:'ID'},
+    {key:'hazard',   label:'Hazard'},
+    {key:'seq',      label:'Sequence'},
+    {key:'sit',      label:'Situation'},
+    {key:'harm',     label:'Harm'},
+    {key:'initial',  label:'Initial Risk (S / O / Class)'},
+    {key:'ctrl',     label:'Risk Controls'},
+    {key:'verif',    label:'Verification'},
+    {key:'residual', label:'Residual Risk (S / O / Class)'},
+    {key:'assess',   label:'Assessment'},
+  ];
+  el.innerHTML='<span class="filter-bar-label">Columns:</span>'+
+    cols.map(c=>`<button class="mcfbtn ${matrixColumns[c.key]?'on':'off'}" onclick="toggleMatrixCol('${c.key}')">${c.label}</button>`).join('')+
+    `<span style="margin-left:auto;font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Click any cell to edit in the right panel</span>`;
+}
+
+function toggleMatrixCol(key){
+  matrixColumns[key]=!matrixColumns[key];
+  // Persist to localStorage so the user's column preferences survive reloads
+  try{localStorage.setItem('hazardMap.matrixColumns',JSON.stringify(matrixColumns));}catch(e){}
+  renderMatrixColFilter();
+  renderMatrix();
+}
+
+// Restore matrix column preferences from localStorage on first load
+(function restoreMatrixCols(){
+  try{
+    const s=localStorage.getItem('hazardMap.matrixColumns');
+    if(s){const p=JSON.parse(s);if(p&&typeof p==='object')Object.assign(matrixColumns,p);}
+  }catch(e){}
+})();
+
+// Build the matrix row data: one row per (situation→harm edge × attached control).
+// Same structure as the Excel export, but data-only — rendering happens separately.
+function buildMatrixRows(){
+  const hazards=nodes.filter(n=>n.type==='hazard').sort((a,b)=>a.id-b.id);
+  const rows=[];
+  let hazIdx=0;
+  for(const hz of hazards){
+    hazIdx++;
+    const sits=edges.filter(e=>e.from===hz.id)
+      .map(e=>nodes.find(n=>n.id===e.to))
+      .filter(n=>n&&n.type==='situation');
+    let sitIdx=0;
+    for(const sit of sits){
+      sitIdx++;
+      const harmEdges=edges.filter(e=>e.from===sit.id)
+        .map(e=>{const harm=nodes.find(n=>n.id===e.to);return harm&&harm.type==='harm'?{harm,edge:e}:null;})
+        .filter(Boolean);
+      if(!harmEdges.length){
+        // Situation with no harm — still surface it as a row
+        rows.push({
+          id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
+          hazard:hz, sit, edge:null, harm:null, attachment:null, control:null,
+          isFirstSitRow:true, isFirstHarmRow:true, isFirstCtrlRow:true,
+        });
+        continue;
+      }
+      let isFirstHarmInSit=true;
+      for(const {harm,edge} of harmEdges){
+        const atts=edgeAttachments(edge);
+        if(!atts.length){
+          rows.push({
+            id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
+            hazard:hz, sit, edge, harm, attachment:null, control:null,
+            isFirstSitRow:isFirstHarmInSit, isFirstHarmRow:true, isFirstCtrlRow:true,
+          });
+          isFirstHarmInSit=false;
+          continue;
+        }
+        let isFirstCtrl=true;
+        for(const att of atts){
+          rows.push({
+            id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
+            hazard:hz, sit, edge, harm,
+            attachment:att.attachment, control:att.control, verification:att.verification,
+            isFirstSitRow:isFirstHarmInSit&&isFirstCtrl,
+            isFirstHarmRow:isFirstCtrl,
+            isFirstCtrlRow:isFirstCtrl,  // back-compat alias
+          });
+          isFirstCtrl=false;
+          isFirstHarmInSit=false;
+        }
+      }
+      // Mark the last row of this situation as a group boundary for CSS
+      if(rows.length)rows[rows.length-1]._sitEnd=true;
+    }
+  }
+  return rows;
+}
+
+// Helpers to compute risk zone display.
+function zonePill(z){
+  if(!z)return '<span class="matrix-empty">—</span>';
+  return `<span class="zone-pill zone-z${z}">Z${z}</span>`;
+}
+
+function renderMatrix(){
+  const thead=document.getElementById('matrix-thead');
+  const tbody=document.getElementById('matrix-tbody');
+  const mc=matrixColumns;
+
+  // Build header rows. Two-row header: top row has group titles, bottom row has individual columns.
+  // Initial Risk and Residual Risk are groups of 3 sub-columns each (Sev / Occ / Class).
+  // Other columns span both rows (rowspan=2).
+  const initialCols=mc.initial?3:0;  // S, O, Class
+  const residualCols=mc.residual?3:0;
+  let thead1='<tr>';
+  let thead2='<tr>';
+  // Simple columns (single rowspan in top header)
+  const simpleTopCols=[
+    [mc.id,    'ID',       'col-id'],
+    [mc.hazard,'Hazard',   'col-hazard'],
+    [mc.seq,   'Sequence', 'col-seq'],
+    [mc.sit,   'Situation','col-sit'],
+    [mc.harm,  'Harm',     'col-harm'],
+  ];
+  for(const [v,lbl,cls] of simpleTopCols){
+    if(v) thead1+=`<th rowspan="2" class="${cls}">${lbl}</th>`;
+  }
+  if(mc.initial){
+    thead1+=`<th colspan="3" class="col-group col-initial">Initial Risk</th>`;
+    thead2+=`<th class="col-num">S</th><th class="col-num">O</th><th class="col-num">Class</th>`;
+  }
+  const ctrlVerifTop=[
+    [mc.ctrl, 'Risk Controls',                'col-ctrl'],
+    [mc.verif,'Verification of Effectiveness','col-verif'],
+  ];
+  for(const [v,lbl,cls] of ctrlVerifTop){
+    if(v) thead1+=`<th rowspan="2" class="${cls}">${lbl}</th>`;
+  }
+  if(mc.residual){
+    thead1+=`<th colspan="3" class="col-group col-residual">Residual Risk</th>`;
+    thead2+=`<th class="col-num">S</th><th class="col-num">O</th><th class="col-num">Class</th>`;
+  }
+  if(mc.assess) thead1+=`<th rowspan="2" class="col-assess">Assessment</th>`;
+  thead1+='</tr>';
+  thead2+='</tr>';
+  thead.innerHTML=thead1+(mc.initial||mc.residual?thead2:'');
+
+  // Build the body
+  const rows=buildMatrixRows();
+  if(!rows.length){
+    const cs=Object.values(mc).filter(Boolean).length+initialCols+residualCols
+      -(mc.initial?1:0)-(mc.residual?1:0);
+    tbody.innerHTML=`<tr><td colspan="${Math.max(cs,1)}"><div class="matrix-empty-state"><b>No data yet</b>Add hazards, situations, and harms in the Graph view, then come back here to see them tabulated.</div></td></tr>`;
+    return;
+  }
+
+  let html='';
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i];
+    const isFirstSit=r.isFirstSitRow;
+    const isFirstHarm=r.isFirstHarmRow;
+    const groupEnd=r._sitEnd?' group-end':'';
+    html+=`<tr class="ctrl-row${groupEnd}" data-row="${i}">`;
+    if(mc.id)     html+=`<td class="col-id" onclick="matrixClick(${i},'id')">${isFirstSit?r.id:''}</td>`;
+    if(mc.hazard) html+=`<td class="col-hazard" onclick="matrixClick(${i},'hazard')">${isFirstSit?escapeMatrix(r.hazard.label):''}</td>`;
+    if(mc.seq){
+      const seq=r.sit&&r.sit.sequence?escapeMatrix(r.sit.sequence).replace(/\n/g,'<br>'):'';
+      html+=`<td class="col-seq" onclick="matrixClick(${i},'sit')">${isFirstSit?seq:''}</td>`;
+    }
+    if(mc.sit)   html+=`<td class="col-sit" onclick="matrixClick(${i},'sit')">${isFirstSit?escapeMatrix(r.sit.label):''}</td>`;
+    if(mc.harm){
+      if(r.harm){
+        const sev=r.harm.severity?` <span class="matrix-empty">- ${severityName(r.harm.severity)}</span>`:'';
+        html+=`<td class="col-harm" onclick="matrixClick(${i},'harm')">${isFirstHarm?escapeMatrix(r.harm.label)+sev:''}</td>`;
+      }else{
+        html+=`<td class="col-harm matrix-empty" onclick="matrixClick(${i},'sit')">${isFirstHarm?'(no harm linked)':''}</td>`;
+      }
+    }
+    if(mc.initial){
+      const sev=r.harm?r.harm.severity:null;
+      const occ=r.edge?r.edge.occurrence:null;
+      const z=sev&&occ?zone(sev,occ):null;
+      html+=`<td class="col-num" onclick="matrixClick(${i},'edge')">${isFirstHarm?(sev||'<span class="matrix-empty">—</span>'):''}</td>`;
+      html+=`<td class="col-num" onclick="matrixClick(${i},'edge')">${isFirstHarm?(occ||'<span class="matrix-empty">—</span>'):''}</td>`;
+      html+=`<td class="col-num" onclick="matrixClick(${i},'edge')">${isFirstHarm?zonePill(z):''}</td>`;
+    }
+    if(mc.ctrl){
+      if(r.control){
+        const review=r.attachment&&r.attachment.migrated?'<span class="review-flag">REVIEW</span>':'';
+        html+=`<td class="col-ctrl" onclick="matrixClick(${i},'control')">${escapeMatrix(r.control.label)}${review}</td>`;
+      }else{
+        html+=`<td class="col-ctrl matrix-empty" onclick="matrixClick(${i},'edge')">${r.edge?'(no controls attached)':''}</td>`;
+      }
+    }
+    if(mc.verif){
+      if(r.control){
+        html+=`<td class="col-verif" onclick="matrixClick(${i},'edge')">${escapeMatrix(r.verification||'(none)')}</td>`;
+      }else{
+        html+=`<td class="col-verif matrix-empty" onclick="matrixClick(${i},'edge')"></td>`;
+      }
+    }
+    if(mc.residual){
+      const ps=r.edge?r.edge.postSeverity:null;
+      const po=r.edge?r.edge.postOccurrence:null;
+      const pz=ps&&po?zone(ps,po):null;
+      html+=`<td class="col-num" onclick="matrixClick(${i},'edge')">${isFirstHarm?(ps||'<span class="matrix-empty">—</span>'):''}</td>`;
+      html+=`<td class="col-num" onclick="matrixClick(${i},'edge')">${isFirstHarm?(po||'<span class="matrix-empty">—</span>'):''}</td>`;
+      html+=`<td class="col-num" onclick="matrixClick(${i},'edge')">${isFirstHarm?zonePill(pz):''}</td>`;
+    }
+    if(mc.assess){
+      const a=r.edge&&r.edge.assessment?r.edge.assessment:'';
+      html+=`<td class="col-assess" onclick="matrixClick(${i},'edge')">${isFirstHarm?(a||'<span class="matrix-empty">—</span>'):''}</td>`;
+    }
+    html+=`</tr>`;
+  }
+  tbody.innerHTML=html;
+  // Reflect currently selected node/edge in the matrix row highlight
+  highlightMatrixSelection();
+}
+
+// Click on a matrix cell — route to the appropriate edit target.
+// target: 'hazard' | 'sit' | 'harm' | 'edge' | 'control' | 'id'
+function matrixClick(rowIdx,target){
+  const rows=buildMatrixRows();  // recompute (cheap; data is small)
+  const r=rows[rowIdx];
+  if(!r)return;
+  if(target==='hazard'&&r.hazard) selectFromIdNoCenter(r.hazard.id);
+  else if(target==='sit'&&r.sit) selectFromIdNoCenter(r.sit.id);
+  else if(target==='harm'&&r.harm) selectFromIdNoCenter(r.harm.id);
+  else if(target==='control'&&r.control) selectFromIdNoCenter(r.control.id);
+  else if(target==='edge'&&r.edge) selectEdge(r.edge.from,r.edge.to);
+  else if(target==='id'&&r.sit) selectFromIdNoCenter(r.sit.id);
+  highlightMatrixSelection();
+}
+
+// Variant of selectFromId that doesn't pan the canvas (we're not on the canvas)
+function selectFromIdNoCenter(id){
+  const n=nodes.find(n=>n.id===id);
+  if(n){selectNode(n);highlightMatrixSelection();}
+}
+
+// Re-paint the matrix-selected row class based on the currently selected node/edge.
+function highlightMatrixSelection(){
+  const tbody=document.getElementById('matrix-tbody');
+  if(!tbody)return;
+  const rows=tbody.querySelectorAll('tr');
+  const matrixRows=buildMatrixRows();
+  rows.forEach((tr,i)=>{
+    const r=matrixRows[i];
+    if(!r){tr.classList.remove('matrix-selected');return;}
+    let sel=false;
+    if(selected){
+      if(selected.id===r.hazard?.id) sel=true;
+      if(selected.id===r.sit?.id) sel=true;
+      if(selected.id===r.harm?.id) sel=true;
+      if(selected.id===r.control?.id) sel=true;
+    }
+    if(selEdge&&r.edge&&selEdge===r.edge) sel=true;
+    tr.classList.toggle('matrix-selected',sel);
+  });
+}
+
+// Safe HTML escape for matrix cells
+function escapeMatrix(s){
+  if(s==null)return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ── Coverage Matrix tab ─────────────────────────────────────────────
 // Rows = situations, columns = 6 properties. Green/red/amber dots.
 // Schema v2: control and post-control checks walk Situation→Harm edges (not harm nodes).
@@ -2158,6 +2533,7 @@ function updAll(){
   updFaultTree();
   updMatrix();
   updOpenItems();
+  if(activeView==='matrix')renderMatrix();
 }
 
 function selectFromList(id){const n=nodes.find(n=>n.id===id);if(n){selectNode(n);pan.x=canvas.offsetWidth/2-n.x*zoom;pan.y=canvas.offsetHeight/2-n.y*zoom;draw();}}
@@ -2266,8 +2642,13 @@ function riskClassFormula(sevCol,occCol,row){
   return '='+f;
 }
 
-function doExportExcel(includeNotes){
+function doExportExcel(mode){
   closeExportModal();
+  // Back-compat: older callers passed a boolean (true=notes, false=clean)
+  if(mode===true)mode='notes';
+  else if(mode===false||mode==null)mode='clean';
+  const includeNotes = (mode==='notes');
+  const isMinimal   = (mode==='minimal');
   if(typeof XLSX==='undefined'){alert('Excel library failed to load. Check your network connection and try again.');return;}
 
   // ── Style presets matching CM-000036-FM ─────────────────────────
@@ -2292,7 +2673,10 @@ function doExportExcel(includeNotes){
   // Helper to set a cell with value, type, and style
   function setCell(ws,addr,value,style,formula){
     if(formula){
-      ws[addr]={t:'n',f:formula.slice(1),v:''};  // strip leading '='
+      // Formula cells: must carry a numeric `v` (placeholder) so xlsx-js-style
+      // serializes them. v:'' on a 't:n' cell gets dropped when the workbook is
+      // written. Excel will overwrite v with the computed value on open.
+      ws[addr]={t:'n',f:formula.slice(1),v:0};  // strip leading '='
     }else if(value===null||value===undefined||value===''){
       ws[addr]={t:'s',v:''};
     }else if(typeof value==='number'){
@@ -2474,11 +2858,12 @@ function doExportExcel(includeNotes){
   function buildHazardAssessmentSheet(){
     const ws={};
 
-    // Headers (row 1) — A through N, optional O for Notes
-    const headers=['ID','Hazard','Sequence of Events Leading to Hazardous Situation',
+    // Headers (row 1) — A through N, optional O for Notes. Minimal mode: A through H.
+    const fullHeaders=['ID','Hazard','Sequence of Events Leading to Hazardous Situation',
       'Hazardous Situation','Harm','Initial Severity','Initial Occurrence',
       'Initial Risk Classification','Risk Control Measures','Verification of Effectiveness',
       'Post Severity','Post Occurrence','Post Risk Classification','Post-Mitigation Assessment'];
+    const headers=isMinimal?fullHeaders.slice(0,8):fullHeaders;
     if(includeNotes)headers.push('Notes / References');
     headers.forEach((h,i)=>{
       const col=XLSX.utils.encode_col(i);
@@ -2541,8 +2926,9 @@ function doExportExcel(includeNotes){
         for(const {harm,edge} of harms){
           const occurrence=edge.occurrence;
           const attachments=edgeAttachments(edge);  // [{control, verification}, ...]
-          // Emit one row per attached control; if no controls, emit one row with blank I/J.
-          const ctrlRowCount=Math.max(1,attachments.length);
+          // Normal mode: one row per attached control (min 1).
+          // Minimal mode: exactly one row per (situation, harm) — no control expansion.
+          const ctrlRowCount=isMinimal?1:Math.max(1,attachments.length);
           const harmStartRow=row;
 
           // ID column: per-situation. "{hazIdx}.{sitIdx:03d}"  e.g. "1.001"
@@ -2607,29 +2993,33 @@ function doExportExcel(includeNotes){
               setCell(ws,'H'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
             }
 
-            // I = Risk Control Measure (per-row, NOT merged — keep center alignment)
-            setCell(ws,'I'+row,ctrlLabel,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
-            // J = Verification (per-row, NOT merged — keep center alignment)
-            setCell(ws,'J'+row,verification,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+            // I, J, K, L, M, N: only written for clean/notes modes.
+            // In minimal mode the export stops at column H (Initial Risk Classification).
+            if(!isMinimal){
+              // I = Risk Control Measure (per-row, NOT merged — keep center alignment)
+              setCell(ws,'I'+row,ctrlLabel,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
+              // J = Verification (per-row, NOT merged — keep center alignment)
+              setCell(ws,'J'+row,verification,{font:FONT_DATA,alignment:{horizontal:'left',vertical:'center',wrapText:true},border:BORDER_THIN});
 
-            // K, L, M, N: per-edge post-control fields (schema v2 — were on harm node in v1).
-            // vertical:'top' for same reason as E-H.
-            if(isFirstCtrlRowInHarm&&edge.postSeverity!=null){
-              setCell(ws,'K'+row,edge.postSeverity,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
-            }else{
-              setCell(ws,'K'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
+              // K, L, M, N: per-edge post-control fields (schema v2 — were on harm node in v1).
+              // vertical:'top' for same reason as E-H.
+              if(isFirstCtrlRowInHarm&&edge.postSeverity!=null){
+                setCell(ws,'K'+row,edge.postSeverity,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
+              }else{
+                setCell(ws,'K'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
+              }
+              if(isFirstCtrlRowInHarm&&edge.postOccurrence!=null){
+                setCell(ws,'L'+row,edge.postOccurrence,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
+              }else{
+                setCell(ws,'L'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
+              }
+              if(isFirstCtrlRowInHarm){
+                setCell(ws,'M'+row,null,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN},riskClassFormula('K','L',row));
+              }else{
+                setCell(ws,'M'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
+              }
+              setCell(ws,'N'+row,isFirstCtrlRowInHarm?(edge.assessment||''):'',{font:FONT_DATA,alignment:{horizontal:'left',vertical:'top',wrapText:true},border:BORDER_THIN});
             }
-            if(isFirstCtrlRowInHarm&&edge.postOccurrence!=null){
-              setCell(ws,'L'+row,edge.postOccurrence,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
-            }else{
-              setCell(ws,'L'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
-            }
-            if(isFirstCtrlRowInHarm){
-              setCell(ws,'M'+row,null,{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN},riskClassFormula('K','L',row));
-            }else{
-              setCell(ws,'M'+row,'',{font:FONT_DATA,alignment:{horizontal:'center',vertical:'top'},border:BORDER_THIN});
-            }
-            setCell(ws,'N'+row,isFirstCtrlRowInHarm?(edge.assessment||''):'',{font:FONT_DATA,alignment:{horizontal:'left',vertical:'top',wrapText:true},border:BORDER_THIN});
 
             // O = Notes (per-row content; not merged — keep center alignment)
             if(includeNotes){
@@ -2638,7 +3028,9 @@ function doExportExcel(includeNotes){
 
             // Row-height estimation — only the per-row content for this row.
             // (Merged-cell heights are added by the merge-group pass below.)
-            const perRowCells=[[ctrlLabel,colWidths.I],[verification,colWidths.J]];
+            // In minimal mode, I/J aren't written, so the per-row content set is empty —
+            // height is purely from the harm cell, which is added in the single-row branch below.
+            const perRowCells=isMinimal?[]:[[ctrlLabel,colWidths.I],[verification,colWidths.J]];
             if(includeNotes)perRowCells.push([notesCell,colWidths.O]);
             let needed=20;  // minimum row height ≈ 20pt for legibility
             for(const [text,w] of perRowCells){
@@ -2651,20 +3043,21 @@ function doExportExcel(includeNotes){
 
           // Record the harm-level merge group (E + F + G + H + K + L + M + N)
           // — only meaningful if the harm produced 2+ rows (i.e. 2+ controls).
+          // Skipped entirely in minimal mode (always 1 row per harm).
           const harmEndRow=row-1;
           if(harmEndRow>harmStartRow){
             harmMergeGroups.push({
               startRow:harmStartRow,
               endRow:harmEndRow,
               harmCellHeight:estimateHeight(harmCell,colWidths.E),
-              assessmentHeight:estimateHeight(edge.assessment||'',colWidths.N)
+              assessmentHeight:isMinimal?0:estimateHeight(edge.assessment||'',colWidths.N)
             });
           }else{
             // Single-row harm — still account for harm-cell height on its row
             perRowHeight[harmStartRow]=Math.max(
               perRowHeight[harmStartRow]||0,
               estimateHeight(harmCell,colWidths.E),
-              estimateHeight(edge.assessment||'',colWidths.N)
+              isMinimal?0:estimateHeight(edge.assessment||'',colWidths.N)
             );
           }
 
@@ -2687,18 +3080,26 @@ function doExportExcel(includeNotes){
 
     // Footer note matching template row 15 ("Note: Columns I and M are Auto-populated...")
     const footerRow=row+1;
-    setCell(ws,'A'+footerRow,'Note: Columns H and M are Auto-populated based on numbers entered into Severity and Occurrence Columns.',{font:FONT_DATA,alignment:{horizontal:'left'}});
+    if(isMinimal){
+      setCell(ws,'A'+footerRow,'Note: Column H is auto-populated based on Severity and Occurrence. Minimal export — risk control and post-control columns omitted.',{font:FONT_DATA,alignment:{horizontal:'left'}});
+    } else {
+      setCell(ws,'A'+footerRow,'Note: Columns H and M are Auto-populated based on numbers entered into Severity and Occurrence Columns.',{font:FONT_DATA,alignment:{horizontal:'left'}});
+    }
 
-    const lastCol=includeNotes?'O':'N';
+    const lastCol=isMinimal?'H':(includeNotes?'O':'N');
     ws['!ref']='A1:'+lastCol+footerRow;
 
     // Column widths — match template, but widen I and J to match C (38.4)
     // so wrapped Risk Control / Verification content fits without truncation.
-    const cols=[
-      {wch:colWidths.A},{wch:colWidths.B},{wch:colWidths.C},{wch:colWidths.D},{wch:colWidths.E},
-      {wch:colWidths.F},{wch:colWidths.G},{wch:colWidths.H},{wch:colWidths.I},{wch:colWidths.J},
-      {wch:colWidths.K},{wch:colWidths.L},{wch:colWidths.M},{wch:colWidths.N}
-    ];
+    // In minimal mode, only A–H are populated; subsequent columns are dropped.
+    const cols=isMinimal
+      ? [{wch:colWidths.A},{wch:colWidths.B},{wch:colWidths.C},{wch:colWidths.D},
+         {wch:colWidths.E},{wch:colWidths.F},{wch:colWidths.G},{wch:colWidths.H}]
+      : [
+          {wch:colWidths.A},{wch:colWidths.B},{wch:colWidths.C},{wch:colWidths.D},{wch:colWidths.E},
+          {wch:colWidths.F},{wch:colWidths.G},{wch:colWidths.H},{wch:colWidths.I},{wch:colWidths.J},
+          {wch:colWidths.K},{wch:colWidths.L},{wch:colWidths.M},{wch:colWidths.N}
+        ];
     if(includeNotes)cols.push({wch:colWidths.O});
     ws['!cols']=cols;
 
@@ -2764,7 +3165,7 @@ function doExportExcel(includeNotes){
   XLSX.utils.book_append_sheet(wb,buildHazardAssessmentSheet(),'Hazard Assessment');
 
   const stamp=new Date().toISOString().slice(0,10);
-  const suffix=includeNotes?'_with_notes':'_clean';
+  const suffix=isMinimal?'_minimal':(includeNotes?'_with_notes':'_clean');
   XLSX.writeFile(wb,'Hazard_Analysis_'+stamp+suffix+'.xlsx');
   toast('Exported '+(includeNotes?'with notes':'clean (template format)'));
 }
