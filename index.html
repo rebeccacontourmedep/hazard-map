@@ -1709,6 +1709,7 @@ function renderLinkedBlock(n, dir, otherType, title){
 
 // Link an existing node as a CHILD of `parentId`
 function linkExistingChild(parentId, childType, childId){
+  commitPendingEdits();
   pushUndo();
   // Schema rules: only hazard→situation and situation→harm edges are valid here.
   // The renderLinkedBlock only ever calls this with valid combos but assert to be safe.
@@ -1724,6 +1725,7 @@ function linkExistingChild(parentId, childType, childId){
 
 // Link an existing node as a PARENT of `childId`
 function linkExistingParent(childId, parentType, parentId){
+  commitPendingEdits();
   pushUndo();
   if(!edges.some(e=>e.from===parentId&&e.to===childId)){
     edges.push({from:parentId,to:childId,occurrence:null,controls:[]});
@@ -1735,8 +1737,11 @@ function linkExistingParent(childId, parentType, parentId){
 }
 
 // Create a brand-new child of `parentId` and link it.
-// After creation we select the new node so the user can immediately rename it.
+// Stays on the parent entity (does NOT navigate to the new child) so the user can
+// continue editing the entity they were working on. The new child appears as a chip
+// in the Linked Harms / Linked Situations section — click it to rename if needed.
 function addLinkedChild(parentId, childType){
+  commitPendingEdits();
   pushUndo();
   const parent=nodes.find(n=>n.id===parentId);
   if(!parent)return;
@@ -1758,13 +1763,14 @@ function addLinkedChild(parentId, childType){
   edges.push({from:parentId,to:id,occurrence:null,controls:[]});
   scheduleSave('Added new '+childType);
   updAll();draw();
-  selectNode(n);
-  // Focus the label field so the user can type a real name immediately
-  setTimeout(()=>{const lbl=document.getElementById('ed-label');if(lbl){lbl.focus();lbl.select();}},80);
+  // Stay on the parent — re-render its linked section so the new chip appears.
+  if(selected&&selected.id===parentId)renderLinkedSection(selected);
+  toast('Added — click the new chip to rename');
 }
 
-// Create a brand-new parent of `childId` and link it.
+// Create a brand-new parent of `childId` and link it. Stays on the child.
 function addLinkedParent(childId, parentType){
+  commitPendingEdits();
   pushUndo();
   const child=nodes.find(n=>n.id===childId);
   if(!child)return;
@@ -1782,13 +1788,14 @@ function addLinkedParent(childId, parentType){
   edges.push({from:id,to:childId,occurrence:null,controls:[]});
   scheduleSave('Added new '+parentType);
   updAll();draw();
-  selectNode(n);
-  setTimeout(()=>{const lbl=document.getElementById('ed-label');if(lbl){lbl.focus();lbl.select();}},80);
+  if(selected&&selected.id===childId)renderLinkedSection(selected);
+  toast('Added — click the new chip to rename');
 }
 
 // Remove a single edge (used by the ✕ on link chips). Confirms before unlinking.
 function unlinkEdge(fromId, toId, ev){
   if(ev){ev.stopPropagation();ev.preventDefault();}
+  commitPendingEdits();
   pushUndo();
   edges=edges.filter(e=>!(e.from===fromId&&e.to===toId));
   scheduleSave('Unlinked');
@@ -1855,16 +1862,37 @@ function updZone(n){
 function saveEdit(){
   if(!selected)return;
   pushUndo();
-  selected.label=document.getElementById('ed-label').value||selected.label;
-  selected.type=document.getElementById('ed-type').value;
-  selected.notes=document.getElementById('ed-notes').value;
-  if(selected.type==='harm'){
-    selected.severity=+document.getElementById('ed-sev').value||null;
-    // Post-control fields now live on the Situation→Harm edge — not on the harm node.
-  }
-  if(selected.type==='situation'){selected.sequence=document.getElementById('ed-sequence').value||'';}
-  if(selected.type==='control'){selected.verification=document.getElementById('ed-verification').value||'';}
+  commitPendingEdits();
   updAll();draw();toast('Saved');
+}
+
+// Flush whatever's currently in the edit form's DOM inputs into the `selected` node.
+// Used by saveEdit() and called proactively before any action that might shift focus
+// off the form (clicking "+ New harm", "✕ unlink", a dropdown change, etc.). Without
+// this, typed-but-unsaved values get discarded when the form is rebuilt for a new
+// target — and the user loses their work.
+function commitPendingEdits(){
+  if(!selected)return;
+  const ep=document.getElementById('edit-panel');
+  if(!ep||ep.style.display==='none')return;
+  const lbl=document.getElementById('ed-label');
+  const ty=document.getElementById('ed-type');
+  const nt=document.getElementById('ed-notes');
+  if(lbl&&lbl.value)selected.label=lbl.value;
+  if(ty)selected.type=ty.value;
+  if(nt)selected.notes=nt.value;
+  if(selected.type==='harm'){
+    const sv=document.getElementById('ed-sev');
+    if(sv)selected.severity=+sv.value||null;
+  }
+  if(selected.type==='situation'){
+    const sq=document.getElementById('ed-sequence');
+    if(sq)selected.sequence=sq.value||'';
+  }
+  if(selected.type==='control'){
+    const ve=document.getElementById('ed-verification');
+    if(ve)selected.verification=ve.value||'';
+  }
 }
 
 // ── Evidence functions ──────────────────────────────────────────────
