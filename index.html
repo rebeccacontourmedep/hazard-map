@@ -2357,33 +2357,55 @@ function buildMatrixRows(){
         continue;
       }
       let isFirstHarmInSit=true;
-      // If neither control nor verification columns are visible, every per-attachment
-      // row would render empty (the per-row content lives in those two columns only).
-      // Collapse to one row per (situation, harm) pair in that case.
-      const collapseToHarm=!matrixColumns.ctrl&&!matrixColumns.verif;
-      for(const {harm,edge} of harmEdges){
-        const atts=edgeAttachments(edge);
-        if(!atts.length||collapseToHarm){
-          rows.push({
-            id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
-            hazard:hz, sit, edge, harm, attachment:null, control:null,
-            isFirstSitRow:isFirstHarmInSit, isFirstHarmRow:true, isFirstCtrlRow:true,
-          });
-          isFirstHarmInSit=false;
-          continue;
-        }
-        let isFirstCtrl=true;
-        for(const att of atts){
-          rows.push({
-            id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
-            hazard:hz, sit, edge, harm,
-            attachment:att.attachment, control:att.control, verification:att.verification,
-            isFirstSitRow:isFirstHarmInSit&&isFirstCtrl,
-            isFirstHarmRow:isFirstCtrl,
-            isFirstCtrlRow:isFirstCtrl,  // back-compat alias
-          });
-          isFirstCtrl=false;
-          isFirstHarmInSit=false;
+      // Collapse rules — avoid emitting rows that would render entirely blank.
+      //   collapseToHarm:  none of the per-attachment columns (ctrl, verif) visible →
+      //                    one row per (situation, harm) instead of one per attachment
+      //   collapseToSit:   none of the per-harm columns (harm, initial, residual, assess)
+      //                    are visible either → one row per situation
+      const collapseToHarm = !matrixColumns.ctrl && !matrixColumns.verif;
+      const collapseToSit  = collapseToHarm
+                          && !matrixColumns.harm
+                          && !matrixColumns.initial
+                          && !matrixColumns.residual
+                          && !matrixColumns.assess;
+
+      if(collapseToSit){
+        // One row for the whole situation — pick the first harm/edge for downstream
+        // click handlers, but the row only renders sit-level columns.
+        const first = harmEdges[0];
+        rows.push({
+          id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
+          hazard:hz, sit,
+          edge:first?first.edge:null,
+          harm:first?first.harm:null,
+          attachment:null, control:null,
+          isFirstSitRow:true, isFirstHarmRow:true, isFirstCtrlRow:true,
+        });
+      } else {
+        for(const {harm,edge} of harmEdges){
+          const atts=edgeAttachments(edge);
+          if(!atts.length||collapseToHarm){
+            rows.push({
+              id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
+              hazard:hz, sit, edge, harm, attachment:null, control:null,
+              isFirstSitRow:isFirstHarmInSit, isFirstHarmRow:true, isFirstCtrlRow:true,
+            });
+            isFirstHarmInSit=false;
+            continue;
+          }
+          let isFirstCtrl=true;
+          for(const att of atts){
+            rows.push({
+              id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
+              hazard:hz, sit, edge, harm,
+              attachment:att.attachment, control:att.control, verification:att.verification,
+              isFirstSitRow:isFirstHarmInSit&&isFirstCtrl,
+              isFirstHarmRow:isFirstCtrl,
+              isFirstCtrlRow:isFirstCtrl,  // back-compat alias
+            });
+            isFirstCtrl=false;
+            isFirstHarmInSit=false;
+          }
         }
       }
       // Mark the last row of this situation as a group boundary for CSS
