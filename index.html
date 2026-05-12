@@ -373,10 +373,10 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
     <button class="btn view-btn"        id="view-matrix" onclick="setView('matrix')" title="Tabular view — mirrors the Excel export">Matrix</button>
   </span>
   <div class="sep"></div>
-  <button class="btn btn-h    graph-only" onclick="setAddMode('hazard')">+ Hazard</button>
-  <button class="btn btn-s    graph-only" onclick="setAddMode('situation')">+ Situation</button>
-  <button class="btn btn-harm graph-only" onclick="setAddMode('harm')">+ Harm</button>
-  <button class="btn btn-ctrl graph-only" onclick="setAddMode('control')">+ Control</button>
+  <button class="btn btn-h"    onclick="setAddMode('hazard')">+ Hazard</button>
+  <button class="btn btn-s"    onclick="setAddMode('situation')">+ Situation</button>
+  <button class="btn btn-harm" onclick="setAddMode('harm')">+ Harm</button>
+  <button class="btn btn-ctrl" onclick="setAddMode('control')">+ Control</button>
   <div class="sep graph-only"></div>
   <button class="btn graph-only" id="connect-btn" onclick="toggleConnectMode()">Connect</button>
   <button class="btn" onclick="deleteSelected()">Delete</button>
@@ -1302,7 +1302,93 @@ function fitScreen(){
 }
 
 // ── Mode ───────────────────────────────────────────────────────────
-function setAddMode(t){addMode=t;connectMode=false;connectSrc=null;document.getElementById('connect-btn').classList.remove('active');setSt('add '+t,'click canvas to place — Esc to cancel');canvas.style.cursor='crosshair';}
+function setAddMode(t){
+  // In matrix view there's no canvas to click — create the node immediately,
+  // auto-parent it based on the current selection or hazard fallback, and open
+  // the edit panel for renaming. Falls through to canvas click-to-place in graph view.
+  if(activeView==='matrix'){addNodeFromMatrix(t);return;}
+  addMode=t;connectMode=false;connectSrc=null;
+  document.getElementById('connect-btn').classList.remove('active');
+  setSt('add '+t,'click canvas to place — Esc to cancel');
+  canvas.style.cursor='crosshair';
+}
+
+// Matrix-view-specific add: pick a sensible parent, link, select for rename.
+function addNodeFromMatrix(t){
+  // Pick a parent based on what's currently selected (in the matrix or otherwise)
+  // and the type the user wants to add.
+  let parent=null;
+  if(t==='hazard'){
+    parent=null;  // hazards have no parent
+  } else if(t==='situation'){
+    // Need a hazard parent. Look at the currently-selected entity to find a hazard.
+    parent=findAncestorHazard(selected||findEdgeSituation(selEdge));
+    if(!parent){
+      // No context — pick the first hazard if any exist, else prompt to add one first.
+      parent=nodes.find(n=>n.type==='hazard');
+      if(!parent){toast('Add a Hazard first');return;}
+    }
+  } else if(t==='harm'){
+    // Need a situation parent.
+    parent=findAncestorSituation(selected||findEdgeSituation(selEdge));
+    if(!parent){
+      toast('Select a situation first (then click + Harm) — or add a row first');
+      return;
+    }
+  } else if(t==='control'){
+    // Controls attach via Situation→Harm edges, not via a parent node directly.
+    // If an edge is currently selected, attach the new control to it; otherwise create unattached.
+    if(selEdge){createAndAttachNewControl();return;}
+    // Fall through: create unattached control
+  }
+  pushUndo();
+  const L={hazard:'New Hazard',situation:'New Hazardous Situation',harm:'New Harm',control:'New Risk Control'};
+  const n={
+    id:nextId++, type:t, label:L[t],
+    x:(parent?.x||0)+260, y:(parent?.y||0)+(Math.random()*120-60),
+    w:190, h:60,
+    notes:'', severity:null, sequence:'', verification:'', evidence:[]
+  };
+  nodes.push(n);
+  if(typeof measure==='function')measure(n);
+  if(parent)edges.push({from:parent.id,to:n.id,occurrence:null,controls:[]});
+  scheduleSave('Added '+t+' from matrix');
+  updAll();
+  selectNode(n);
+  setTimeout(()=>{const lbl=document.getElementById('ed-label');if(lbl){lbl.focus();lbl.select();}},80);
+}
+
+// Given any node or edge, walk up the chain (control → edge → situation → hazard)
+// to find the upstream hazard.
+function findAncestorHazard(node){
+  if(!node)return null;
+  if(node.type==='hazard')return node;
+  if(node.type==='situation'){
+    const e=edges.find(x=>x.to===node.id);
+    return e?nodes.find(n=>n.id===e.from&&n.type==='hazard'):null;
+  }
+  if(node.type==='harm'){
+    // walk via any inbound Situation→Harm edge to its upstream hazard
+    const sitEdge=edges.find(x=>x.to===node.id);
+    if(!sitEdge)return null;
+    const sit=nodes.find(n=>n.id===sitEdge.from&&n.type==='situation');
+    return findAncestorHazard(sit);
+  }
+  return null;
+}
+function findAncestorSituation(node){
+  if(!node)return null;
+  if(node.type==='situation')return node;
+  if(node.type==='harm'){
+    const e=edges.find(x=>x.to===node.id);
+    return e?nodes.find(n=>n.id===e.from&&n.type==='situation'):null;
+  }
+  return null;
+}
+function findEdgeSituation(edge){
+  if(!edge)return null;
+  return nodes.find(n=>n.id===edge.from&&n.type==='situation');
+}
 function toggleConnectMode(){connectMode=!connectMode;addMode=null;connectSrc=null;document.getElementById('connect-btn').classList.toggle('active',connectMode);if(connectMode){setSt('connect','click source, then target — Esc to cancel');canvas.style.cursor='cell';}else{setSt('select','');canvas.style.cursor='default';}}
 function setSt(m,h){document.getElementById('st-mode').textContent=m;document.getElementById('st-hint').textContent=h||'';}
 
