@@ -199,6 +199,26 @@ table.cvg tr:hover td{background:var(--surface2);}
 .ep-connections{font-size:11px;color:var(--text3);margin-top:6px;line-height:1.6;}
 .ep-conn-item{cursor:pointer;color:var(--accent);}.ep-conn-item:hover{text-decoration:underline;}
 
+/* ── Linked entities section (edit panel) ──
+   Mirrors the traceability matrix tool: chips for current links + dropdown
+   to link existing + button to create new. */
+.linked-section{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);}
+.linked-hdr{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;}
+.link-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;margin:2px 3px 2px 0;border-radius:3px;font-size:11px;cursor:pointer;background:var(--surface2);border:1px solid var(--border);max-width:100%;}
+.link-chip:hover{border-color:var(--accent);}
+.link-chip .x{font-size:11px;color:var(--text3);padding:0 2px;border-radius:2px;cursor:pointer;line-height:1;}
+.link-chip .x:hover{color:var(--z3);background:rgba(220,38,38,.08);}
+.link-chip.harm   {background:rgba(26,122,74,.08); border-color:rgba(26,122,74,.30);}
+.link-chip.sit    {background:rgba(184,110,0,.08); border-color:rgba(184,110,0,.30);}
+.link-chip.hazard {background:rgba(192,57,43,.08); border-color:rgba(192,57,43,.30);}
+.link-chip.control{background:rgba(37,99,235,.08); border-color:rgba(37,99,235,.30);}
+.link-chip-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}
+.link-add{margin-top:6px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+.link-add select{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-size:11px;font-family:'IBM Plex Sans',sans-serif;color:var(--text);}
+.link-add .link-new-btn{background:var(--surface);border:1px dashed var(--border2);color:var(--text2);font-size:11px;padding:3px 9px;border-radius:3px;cursor:pointer;font-family:'IBM Plex Mono',monospace;letter-spacing:.03em;}
+.link-add .link-new-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,.04);}
+.link-empty{font-size:11px;color:var(--text3);font-style:italic;padding:2px 0;}
+
 /* (Edge popup CSS removed — edge editing now uses the right-side panel) */
 
 /* minimap */
@@ -590,9 +610,10 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 
         <label class="ep-lbl" style="margin-top:10px">Risk Controls Attached <span style="font-weight:400;text-transform:none;letter-spacing:0">(cols I & J)</span></label>
         <div id="ee-controls-list" style="font-size:12px;margin-bottom:6px"></div>
-        <div style="display:flex;gap:6px;align-items:center;margin-top:4px">
-          <select id="ee-ctrl-picker" style="flex:1;background:#fff;border:1px solid var(--border);border-radius:4px;padding:4px 7px;font-size:12px"></select>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:4px;flex-wrap:wrap">
+          <select id="ee-ctrl-picker" style="flex:1;min-width:140px;background:#fff;border:1px solid var(--border);border-radius:4px;padding:4px 7px;font-size:12px"></select>
           <button class="btn" onclick="attachControlToEdge()" style="padding:4px 10px;font-size:11px">+ Attach</button>
+          <button class="link-new-btn" onclick="createAndAttachNewControl()" title="Create a brand-new Risk Control node and attach it to this edge">+ New control</button>
         </div>
 
         <label class="ep-lbl" style="margin-top:10px">Notes / References <span style="font-weight:400;text-transform:none;letter-spacing:0">(edge-specific)</span></label>
@@ -1460,19 +1481,197 @@ function showEdit(n){
   // Populate evidence panel
   hideEvForm();
   renderEvList(n);
-  // Show connections
-  const conns=[];
-  edges.forEach(e=>{
-    if(e.from===n.id){const d=nodes.find(x=>x.id===e.to);if(d)conns.push({dir:'→',node:d});}
-    if(e.to===n.id){const s=nodes.find(x=>x.id===e.from);if(s)conns.push({dir:'←',node:s});}
-  });
-  const el=document.getElementById('ep-connections');
-  if(conns.length){
-    el.style.display='block';
-    el.innerHTML='<div style="font-size:10px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Connections ('+conns.length+')</div>'+
-      conns.map(c=>`<span class="ep-conn-item" onclick="selectFromId(${c.node.id})">${c.dir} ${c.node.label.substring(0,38)}${c.node.label.length>38?'…':''}</span><br>`).join('');
-  }else el.style.display='none';
+  // Render linked-entities section (mirrors traceability matrix Parents/Children pattern)
+  renderLinkedSection(n);
 }
+
+// ── Linked-entities section ─────────────────────────────────────────
+// Mirrors the traceability matrix tool's Parents/Children pattern:
+//   • Chip list for current links (click chip = jump to it; ✕ = unlink)
+//   • Dropdown for adding an existing entity of the appropriate type
+//   • "+ New …" button to create a brand-new entity and link it
+//
+// The schema chain is: Hazard → Situation → Harm (terminal). Controls attach via
+// edge.controls on Situation→Harm edges (not via this section — that's in the edge panel).
+//
+// What's rendered depends on the node type:
+//   • Hazard:    "Linked Situations" (children)
+//   • Situation: "Linked Hazards" (parents) + "Linked Harms" (children)
+//   • Harm:      "Linked from Situations" (parents)  — schema-v2 invariant: no children
+//   • Control:   "Attached to Situation→Harm edges" (already rendered in #ctrl-attached-display
+//                by the existing showEdit logic; this section adds nothing for controls)
+
+function renderLinkedSection(n){
+  const el=document.getElementById('ep-connections');
+  if(!n||!el){if(el)el.style.display='none';return;}
+  if(n.type==='control'){
+    // Control's attached-edges list is rendered by showEdit in #ctrl-attached-display.
+    // No additional linked-section needed.
+    el.style.display='none';
+    return;
+  }
+  el.style.display='block';
+  let html='';
+  if(n.type==='hazard'){
+    html+=renderLinkedBlock(n, 'children', 'situation', 'Linked Situations');
+  } else if(n.type==='situation'){
+    html+=renderLinkedBlock(n, 'parents',  'hazard',    'Linked Hazards');
+    html+=renderLinkedBlock(n, 'children', 'harm',      'Linked Harms');
+  } else if(n.type==='harm'){
+    html+=renderLinkedBlock(n, 'parents',  'situation', 'Linked from Situations');
+  }
+  el.innerHTML=html;
+}
+
+// Render one Parents-or-Children block: chips + dropdown + "new" button.
+// dir: 'parents' (incoming edges) or 'children' (outgoing edges)
+// otherType: the type of node on the other end of the edge
+function renderLinkedBlock(n, dir, otherType, title){
+  const linkedNodes=(dir==='children'
+    ? edges.filter(e=>e.from===n.id).map(e=>nodes.find(x=>x.id===e.to))
+    : edges.filter(e=>e.to===n.id).map(e=>nodes.find(x=>x.id===e.from))
+  ).filter(x=>x&&x.type===otherType);
+  const linkedIds=new Set(linkedNodes.map(x=>x.id));
+  const candidates=nodes.filter(x=>x.type===otherType&&!linkedIds.has(x.id))
+    .sort((a,b)=>(a.label||'').localeCompare(b.label||''));
+
+  // Build the chip list
+  let chips;
+  if(!linkedNodes.length){
+    chips=`<div class="link-empty">None linked yet.</div>`;
+  } else {
+    chips=linkedNodes.map(x=>{
+      // For a situation editing its harms, clicking the chip should open the edge edit panel,
+      // not the harm node — because the edge holds occurrence + post-control fields. The chip
+      // for other directions still opens the linked node directly.
+      const click=(n.type==='situation'&&otherType==='harm')
+        ? `selectEdge(${n.id},${x.id})`
+        : `selectFromId(${x.id})`;
+      const unlink=(dir==='children')
+        ? `unlinkEdge(${n.id},${x.id},event)`
+        : `unlinkEdge(${x.id},${n.id},event)`;
+      return `<span class="link-chip ${otherType==='situation'?'sit':otherType}" onclick="${click}" title="${escapeMatrix(x.label)}">
+        <span class="link-chip-label">${escapeMatrix(x.label.substring(0,40))}${x.label.length>40?'…':''}</span>
+        <span class="x" onclick="${unlink}" title="Unlink (does not delete the ${otherType})">✕</span>
+      </span>`;
+    }).join(' ');
+  }
+
+  // Build the dropdown options
+  const dropdownOpts=candidates.length
+    ? candidates.map(c=>`<option value="${c.id}">${escapeMatrix(c.label.substring(0,60))}${c.label.length>60?'…':''}</option>`).join('')
+    : '<option disabled>(no unlinked '+otherType+'s available)</option>';
+
+  // "+ New" button — only makes sense for some pairs. For "Linked Hazards" of a situation,
+  // we still expose "+ New hazard" — creating a new hazard parent for this situation.
+  const newBtnLabel=`+ New ${otherType==='situation'?'situation':otherType}`;
+  const newBtnAction=(dir==='children')
+    ? `addLinkedChild(${n.id},'${otherType}')`
+    : `addLinkedParent(${n.id},'${otherType}')`;
+
+  return `<div class="linked-section">
+    <div class="linked-hdr"><span>${title}</span><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">${linkedNodes.length}</span></div>
+    <div class="linked-chips">${chips}</div>
+    <div class="link-add">
+      <select onchange="if(this.value){${dir==='children'?'linkExistingChild':'linkExistingParent'}(${n.id},'${otherType}',+this.value);this.value='';}">
+        <option value="">+ Add existing ${otherType==='situation'?'situation':otherType}…</option>
+        ${dropdownOpts}
+      </select>
+      <button class="link-new-btn" onclick="${newBtnAction}">${newBtnLabel}</button>
+    </div>
+  </div>`;
+}
+
+// Link an existing node as a CHILD of `parentId`
+function linkExistingChild(parentId, childType, childId){
+  pushUndo();
+  // Schema rules: only hazard→situation and situation→harm edges are valid here.
+  // The renderLinkedBlock only ever calls this with valid combos but assert to be safe.
+  if(!edges.some(e=>e.from===parentId&&e.to===childId)){
+    edges.push({from:parentId,to:childId,occurrence:null,controls:[]});
+  }
+  scheduleSave('Linked '+childType);
+  updAll();draw();
+  // Re-render the edit panel for the parent (which we're still editing)
+  const p=nodes.find(n=>n.id===parentId);
+  if(p)renderLinkedSection(p);
+}
+
+// Link an existing node as a PARENT of `childId`
+function linkExistingParent(childId, parentType, parentId){
+  pushUndo();
+  if(!edges.some(e=>e.from===parentId&&e.to===childId)){
+    edges.push({from:parentId,to:childId,occurrence:null,controls:[]});
+  }
+  scheduleSave('Linked '+parentType);
+  updAll();draw();
+  const c=nodes.find(n=>n.id===childId);
+  if(c)renderLinkedSection(c);
+}
+
+// Create a brand-new child of `parentId` and link it.
+// After creation we select the new node so the user can immediately rename it.
+function addLinkedChild(parentId, childType){
+  pushUndo();
+  const parent=nodes.find(n=>n.id===parentId);
+  if(!parent)return;
+  const id=nextId++;
+  const n={
+    id, type:childType,
+    label:'New '+childType,
+    x:(parent.x||0)+260,
+    y:(parent.y||0)+(Math.random()*120-60),
+    w:190, h:60,
+    severity:null,
+    sequence:'',
+    notes:'',
+    verification:'',
+    evidence:[]
+  };
+  nodes.push(n);
+  if(typeof measure==='function')measure(n);
+  edges.push({from:parentId,to:id,occurrence:null,controls:[]});
+  scheduleSave('Added new '+childType);
+  updAll();draw();
+  selectNode(n);
+  // Focus the label field so the user can type a real name immediately
+  setTimeout(()=>{const lbl=document.getElementById('ed-label');if(lbl){lbl.focus();lbl.select();}},80);
+}
+
+// Create a brand-new parent of `childId` and link it.
+function addLinkedParent(childId, parentType){
+  pushUndo();
+  const child=nodes.find(n=>n.id===childId);
+  if(!child)return;
+  const id=nextId++;
+  const n={
+    id, type:parentType,
+    label:'New '+parentType,
+    x:(child.x||0)-260,
+    y:(child.y||0)+(Math.random()*120-60),
+    w:190, h:60,
+    severity:null, sequence:'', notes:'', verification:'', evidence:[]
+  };
+  nodes.push(n);
+  if(typeof measure==='function')measure(n);
+  edges.push({from:id,to:childId,occurrence:null,controls:[]});
+  scheduleSave('Added new '+parentType);
+  updAll();draw();
+  selectNode(n);
+  setTimeout(()=>{const lbl=document.getElementById('ed-label');if(lbl){lbl.focus();lbl.select();}},80);
+}
+
+// Remove a single edge (used by the ✕ on link chips). Confirms before unlinking.
+function unlinkEdge(fromId, toId, ev){
+  if(ev){ev.stopPropagation();ev.preventDefault();}
+  pushUndo();
+  edges=edges.filter(e=>!(e.from===fromId&&e.to===toId));
+  scheduleSave('Unlinked');
+  updAll();draw();
+  // Re-render the current edit panel
+  if(selected)renderLinkedSection(selected);
+}
+
 
 function onTypeChange(){
   const t=document.getElementById('ed-type').value;
@@ -1748,6 +1947,36 @@ function attachControlToEdge(){
   refreshAttachedControls(activePopupEdge);
   refreshControlPicker(activePopupEdge);
   updAll();draw();toast('Control attached');
+}
+// Create a brand-new Risk Control node and attach it to the currently-open edge.
+// After creation, the new control is attached with empty per-attachment verification;
+// the user can fill the control's default verification by clicking the control chip
+// to jump to the control node (or by editing the per-attachment verification inline).
+function createAndAttachNewControl(){
+  if(!activePopupEdge)return;
+  pushUndo();
+  // Position the new control to the right of the harm node so it's visible on canvas
+  const harm=nodes.find(n=>n.id===activePopupEdge.to);
+  const id=nextId++;
+  const ctrl={
+    id, type:'control',
+    label:'New risk control',
+    x:(harm?.x||0)+260,
+    y:(harm?.y||0)+(Math.random()*120-60),
+    w:190, h:60,
+    severity:null, sequence:'', notes:'', verification:'', evidence:[]
+  };
+  nodes.push(ctrl);
+  if(typeof measure==='function')measure(ctrl);
+  if(!Array.isArray(activePopupEdge.controls))activePopupEdge.controls=[];
+  activePopupEdge.controls.push({controlId:id,verification:''});
+  refreshAttachedControls(activePopupEdge);
+  refreshControlPicker(activePopupEdge);
+  updAll();draw();
+  // Jump to the new control so the user can immediately rename it + set verification
+  selectNode(ctrl);
+  setTimeout(()=>{const lbl=document.getElementById('ed-label');if(lbl){lbl.focus();lbl.select();}},80);
+  toast('New control created and attached');
 }
 function detachControl(controlId){
   if(!activePopupEdge)return;
