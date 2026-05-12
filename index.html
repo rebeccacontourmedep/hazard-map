@@ -1316,18 +1316,15 @@ function setAddMode(t){
 // Matrix-view-specific add: pick a sensible parent, link, select for rename.
 function addNodeFromMatrix(t){
   // Pick a parent based on what's currently selected (in the matrix or otherwise)
-  // and the type the user wants to add.
+  // and the type the user wants to add. Situations can be created without any
+  // hazard parent — they appear free-floating at the end of the matrix and can
+  // be wired to a hazard later via the edit panel's "Linked Hazards" section.
   let parent=null;
   if(t==='hazard'){
     parent=null;  // hazards have no parent
   } else if(t==='situation'){
-    // Need a hazard parent. Look at the currently-selected entity to find a hazard.
+    // Try to auto-link to a hazard if one is in context, but don't require it.
     parent=findAncestorHazard(selected||findEdgeSituation(selEdge));
-    if(!parent){
-      // No context — pick the first hazard if any exist, else prompt to add one first.
-      parent=nodes.find(n=>n.type==='hazard');
-      if(!parent){toast('Add a Hazard first');return;}
-    }
   } else if(t==='harm'){
     // Need a situation parent.
     parent=findAncestorSituation(selected||findEdgeSituation(selEdge));
@@ -1341,6 +1338,10 @@ function addNodeFromMatrix(t){
     if(selEdge){createAndAttachNewControl();return;}
     // Fall through: create unattached control
   }
+  // Preserve the matrix scroll position so the user keeps their place — the new
+  // row appears at the end, but we don't yank the viewport there.
+  const wrap=document.getElementById('matrix-table-wrap');
+  const keepScroll=wrap?wrap.scrollTop:0;
   pushUndo();
   const L={hazard:'New Hazard',situation:'New Hazardous Situation',harm:'New Harm',control:'New Risk Control'};
   const n={
@@ -1355,7 +1356,13 @@ function addNodeFromMatrix(t){
   scheduleSave('Added '+t+' from matrix');
   updAll();
   selectNode(n);
-  setTimeout(()=>{const lbl=document.getElementById('ed-label');if(lbl){lbl.focus();lbl.select();}},80);
+  // Restore scroll position after the re-render
+  if(wrap)wrap.scrollTop=keepScroll;
+  setTimeout(()=>{
+    if(wrap)wrap.scrollTop=keepScroll;
+    const lbl=document.getElementById('ed-label');
+    if(lbl){lbl.focus();lbl.select();}
+  },80);
 }
 
 // Given any node or edge, walk up the chain (control → edge → situation → hazard)
@@ -2417,86 +2424,81 @@ function toggleMatrixCol(key){
 })();
 
 // Build the matrix row data: one row per (situation→harm edge × attached control).
-// Same structure as the Excel export, but data-only — rendering happens separately.
+// Schema-agnostic ordering: situations are listed in creation order (by .id), regardless
+// of which hazard they belong to. This lets:
+//   • a newly-added situation appear at the end of the list (right where the user is)
+//     instead of jumping into its hazard's group
+//   • situations exist without a hazard parent (Hazard cell renders as "—")
+//   • the displayed ID be a flat global counter ("001", "002", ...) instead of {haz}.{sit}
 function buildMatrixRows(){
-  const hazards=nodes.filter(n=>n.type==='hazard').sort((a,b)=>a.id-b.id);
+  const sits=nodes.filter(n=>n.type==='situation').sort((a,b)=>a.id-b.id);
   const rows=[];
-  let hazIdx=0;
-  for(const hz of hazards){
-    hazIdx++;
-    const sits=edges.filter(e=>e.from===hz.id)
-      .map(e=>nodes.find(n=>n.id===e.to))
-      .filter(n=>n&&n.type==='situation');
-    let sitIdx=0;
-    for(const sit of sits){
-      sitIdx++;
-      const harmEdges=edges.filter(e=>e.from===sit.id)
-        .map(e=>{const harm=nodes.find(n=>n.id===e.to);return harm&&harm.type==='harm'?{harm,edge:e}:null;})
-        .filter(Boolean);
-      if(!harmEdges.length){
-        // Situation with no harm — still surface it as a row
-        rows.push({
-          id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
-          hazard:hz, sit, edge:null, harm:null, attachment:null, control:null,
-          isFirstSitRow:true, isFirstHarmRow:true, isFirstCtrlRow:true,
-        });
-        continue;
-      }
-      let isFirstHarmInSit=true;
-      // Collapse rules — avoid emitting rows that would render entirely blank.
-      //   collapseToHarm:  none of the per-attachment columns (ctrl, verif) visible →
-      //                    one row per (situation, harm) instead of one per attachment
-      //   collapseToSit:   none of the per-harm columns (harm, initial, residual, assess)
-      //                    are visible either → one row per situation
-      const collapseToHarm = !matrixColumns.ctrl && !matrixColumns.verif;
-      const collapseToSit  = collapseToHarm
-                          && !matrixColumns.harm
-                          && !matrixColumns.initial
-                          && !matrixColumns.residual
-                          && !matrixColumns.assess;
+  let sitIdx=0;
+  for(const sit of sits){
+    sitIdx++;
+    // Look up parent hazard via inbound edge (may be null if free-floating)
+    const parentEdge=edges.find(e=>e.to===sit.id);
+    const hz=parentEdge?nodes.find(n=>n.id===parentEdge.from&&n.type==='hazard'):null;
+    const idStr=String(sitIdx).padStart(3,'0');
 
-      if(collapseToSit){
-        // One row for the whole situation — pick the first harm/edge for downstream
-        // click handlers, but the row only renders sit-level columns.
-        const first = harmEdges[0];
-        rows.push({
-          id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
-          hazard:hz, sit,
-          edge:first?first.edge:null,
-          harm:first?first.harm:null,
-          attachment:null, control:null,
-          isFirstSitRow:true, isFirstHarmRow:true, isFirstCtrlRow:true,
-        });
-      } else {
-        for(const {harm,edge} of harmEdges){
-          const atts=edgeAttachments(edge);
-          if(!atts.length||collapseToHarm){
-            rows.push({
-              id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
-              hazard:hz, sit, edge, harm, attachment:null, control:null,
-              isFirstSitRow:isFirstHarmInSit, isFirstHarmRow:true, isFirstCtrlRow:true,
-            });
-            isFirstHarmInSit=false;
-            continue;
-          }
-          let isFirstCtrl=true;
-          for(const att of atts){
-            rows.push({
-              id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
-              hazard:hz, sit, edge, harm,
-              attachment:att.attachment, control:att.control, verification:att.verification,
-              isFirstSitRow:isFirstHarmInSit&&isFirstCtrl,
-              isFirstHarmRow:isFirstCtrl,
-              isFirstCtrlRow:isFirstCtrl,  // back-compat alias
-            });
-            isFirstCtrl=false;
-            isFirstHarmInSit=false;
-          }
+    const harmEdges=edges.filter(e=>e.from===sit.id)
+      .map(e=>{const harm=nodes.find(n=>n.id===e.to);return harm&&harm.type==='harm'?{harm,edge:e}:null;})
+      .filter(Boolean);
+    if(!harmEdges.length){
+      rows.push({
+        id:idStr, hazard:hz, sit, edge:null, harm:null, attachment:null, control:null,
+        isFirstSitRow:true, isFirstHarmRow:true, isFirstCtrlRow:true,
+      });
+      continue;
+    }
+    let isFirstHarmInSit=true;
+    // Collapse rules — avoid emitting rows that would render entirely blank.
+    //   collapseToHarm:  none of the per-attachment columns (ctrl, verif) visible →
+    //                    one row per (situation, harm) instead of one per attachment
+    //   collapseToSit:   none of the per-harm columns (harm, initial, residual, assess)
+    //                    are visible either → one row per situation
+    const collapseToHarm = !matrixColumns.ctrl && !matrixColumns.verif;
+    const collapseToSit  = collapseToHarm
+                        && !matrixColumns.harm
+                        && !matrixColumns.initial
+                        && !matrixColumns.residual
+                        && !matrixColumns.assess;
+
+    if(collapseToSit){
+      const first = harmEdges[0];
+      rows.push({
+        id:idStr, hazard:hz, sit,
+        edge:first?first.edge:null,
+        harm:first?first.harm:null,
+        attachment:null, control:null,
+        isFirstSitRow:true, isFirstHarmRow:true, isFirstCtrlRow:true,
+      });
+    } else {
+      for(const {harm,edge} of harmEdges){
+        const atts=edgeAttachments(edge);
+        if(!atts.length||collapseToHarm){
+          rows.push({
+            id:idStr, hazard:hz, sit, edge, harm, attachment:null, control:null,
+            isFirstSitRow:isFirstHarmInSit, isFirstHarmRow:true, isFirstCtrlRow:true,
+          });
+          isFirstHarmInSit=false;
+          continue;
+        }
+        let isFirstCtrl=true;
+        for(const att of atts){
+          rows.push({
+            id:idStr, hazard:hz, sit, edge, harm,
+            attachment:att.attachment, control:att.control, verification:att.verification,
+            isFirstSitRow:isFirstHarmInSit&&isFirstCtrl,
+            isFirstHarmRow:isFirstCtrl,
+            isFirstCtrlRow:isFirstCtrl,
+          });
+          isFirstCtrl=false;
+          isFirstHarmInSit=false;
         }
       }
-      // Mark the last row of this situation as a group boundary for CSS
-      if(rows.length)rows[rows.length-1]._sitEnd=true;
     }
+    if(rows.length)rows[rows.length-1]._sitEnd=true;
   }
   return rows;
 }
@@ -2567,7 +2569,7 @@ function renderMatrix(){
     const groupEnd=r._sitEnd?' group-end':'';
     html+=`<tr class="ctrl-row${groupEnd}" data-row="${i}">`;
     if(mc.id)     html+=`<td class="col-id" onclick="matrixClick(${i},'id')">${isFirstSit?r.id:''}</td>`;
-    if(mc.hazard) html+=`<td class="col-hazard" onclick="matrixClick(${i},'hazard')">${isFirstSit?escapeMatrix(r.hazard.label):''}</td>`;
+    if(mc.hazard) html+=`<td class="col-hazard" onclick="matrixClick(${i},'hazard')">${isFirstSit?(r.hazard?escapeMatrix(r.hazard.label):'<span class="matrix-empty">—</span>'):''}</td>`;
     if(mc.seq){
       const seq=r.sit&&r.sit.sequence?escapeMatrix(r.sit.sequence).replace(/\n/g,'<br>'):'';
       html+=`<td class="col-seq" onclick="matrixClick(${i},'sit')">${isFirstSit?seq:''}</td>`;
@@ -4599,13 +4601,29 @@ async function initSupabase(){
         const parsed=payload.new.data;
         if(parsed&&parsed.nodes&&parsed.edges){
           isRemoteUpdate=true;
+          // Preserve the user's in-flight edit context across the remote update.
+          // Without this, an echo of our own save (or even a real teammate edit)
+          // wipes the open edit panel and the user loses their place.
+          const keepSelectedId = selected?.id;
+          const keepEdgeKey    = selEdge ? `${selEdge.from}|${selEdge.to}` : null;
+          const matrixScrollTop = document.getElementById('matrix-table-wrap')?.scrollTop || 0;
           nodes=parsed.nodes;edges=parsed.edges;
           nextId=Math.max(...nodes.map(n=>n.id),0)+1;
-          selected=null;selEdge=null;
-          document.getElementById('edit-panel').style.display='none';
-          clearFocus();closeEdgePopup();updAll();draw();
+          updAll();draw();
+          // Restore the selection so the edit panel stays open on the same entity
+          if(keepSelectedId!=null){
+            const n=nodes.find(x=>x.id===keepSelectedId);
+            if(n)selectNode(n);
+          } else if(keepEdgeKey){
+            const [f,t]=keepEdgeKey.split('|').map(Number);
+            const e=edges.find(x=>x.from===f&&x.to===t);
+            if(e)showEdgeEdit(e);
+          }
+          // Restore matrix scroll position
+          const wrap=document.getElementById('matrix-table-wrap');
+          if(wrap)wrap.scrollTop=matrixScrollTop;
           lastSavedHash=remoteHash;
-          setSyncBadge('live','Updated by teammate');
+          setSyncBadge('live','Updated');
           setTimeout(()=>{setSyncBadge('saved','Saved');isRemoteUpdate=false;},2500);
         }
       }
