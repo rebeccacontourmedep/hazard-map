@@ -61,8 +61,9 @@ canvas{flex:1;display:block;cursor:default;min-width:0;}
 .view-toggle .view-btn{border:none;border-radius:0;padding:3px 10px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;background:var(--surface2);color:var(--text2);font-family:'IBM Plex Mono',monospace;}
 .view-toggle .view-btn:hover{background:var(--hover);}
 .view-toggle .view-btn.active{background:var(--accent);color:#fff;}
-/* Hide canvas-only toolbar buttons when in matrix view */
+/* Hide canvas-only toolbar buttons + the filter bar when in matrix view */
 body.view-matrix .graph-only{display:none !important;}
+body.view-matrix .filter-bar{display:none;}
 
 /* Matrix view container — fills the same area as the canvas */
 .matrix-view{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--surface);}
@@ -245,21 +246,6 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 #sync-badge.live{border-color:rgba(37,99,235,.3);background:#f0f4ff;color:#2563eb;}
 
 
-/* ── AI Assistant panel ── */
-.ai-panel{border-top:1px solid var(--border);padding:10px 11px;background:var(--surface2);flex-shrink:0;}
-.ai-panel-hdr{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;}
-.ai-panel-hdr button{font-size:10px;background:none;border:none;color:var(--text3);cursor:pointer;font-family:'IBM Plex Mono',monospace;padding:0;}
-.ai-panel-hdr button:hover{color:var(--text);}
-.ai-input-wrap{display:flex;gap:5px;align-items:flex-end;}
-.ai-input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;padding:5px 8px;font-family:'IBM Plex Sans',sans-serif;outline:none;resize:none;line-height:1.4;max-height:80px;transition:border-color .12s;}
-.ai-input:focus{border-color:var(--accent);}
-.ai-send{padding:5px 10px;background:var(--accent);color:#fff;border:none;border-radius:4px;font-size:12px;font-weight:600;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap;flex-shrink:0;transition:background .12s;}
-.ai-send:hover{background:#1d4ed8;}
-.ai-send:disabled{background:var(--border2);cursor:not-allowed;}
-.ai-status{font-size:11px;color:var(--text3);margin-top:5px;min-height:16px;line-height:1.4;}
-.ai-status.thinking{color:var(--accent);}
-.ai-status.err{color:var(--z3);}
-
 
 /* ── Resizable panel ── */
 .panel-resize-handle{
@@ -356,12 +342,12 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
     <button class="btn view-btn"        id="view-matrix" onclick="setView('matrix')" title="Tabular view — mirrors the Excel export">Matrix</button>
   </span>
   <div class="sep"></div>
-  <button class="btn btn-h"    onclick="setAddMode('hazard')">+ Hazard</button>
-  <button class="btn btn-s"    onclick="setAddMode('situation')">+ Situation</button>
-  <button class="btn btn-harm" onclick="setAddMode('harm')">+ Harm</button>
-  <button class="btn btn-ctrl" onclick="setAddMode('control')">+ Control</button>
-  <div class="sep"></div>
-  <button class="btn" id="connect-btn" onclick="toggleConnectMode()">Connect</button>
+  <button class="btn btn-h    graph-only" onclick="setAddMode('hazard')">+ Hazard</button>
+  <button class="btn btn-s    graph-only" onclick="setAddMode('situation')">+ Situation</button>
+  <button class="btn btn-harm graph-only" onclick="setAddMode('harm')">+ Harm</button>
+  <button class="btn btn-ctrl graph-only" onclick="setAddMode('control')">+ Control</button>
+  <div class="sep graph-only"></div>
+  <button class="btn graph-only" id="connect-btn" onclick="toggleConnectMode()">Connect</button>
   <button class="btn" onclick="deleteSelected()">Delete</button>
   <div class="sep"></div>
   <button class="btn" onclick="undo()" title="Ctrl+Z">Undo</button>
@@ -452,21 +438,6 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         <div class="tab-pane"        id="pane-mx"   ><div id="mx-content"></div></div>
         <div class="tab-pane"        id="pane-oi"   ><div id="oi-content"></div></div>
         <div class="tab-pane"        id="pane-al"   ><div id="al-content"></div></div>
-      </div>
-
-      <!-- AI Assistant Panel -->
-      <div class="ai-panel" id="ai-panel">
-        <div class="ai-panel-hdr">
-          <span>AI assistant</span>
-          <button onclick="toggleAiPanel()" id="ai-toggle">hide</button>
-        </div>
-        <div id="ai-body">
-          <div class="ai-input-wrap">
-            <textarea class="ai-input" id="ai-input" rows="2" placeholder="e.g. Add a harm node: Device disconnection, severity 3. Connect it to Spline fracture situation." onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();sendAiPrompt();}"></textarea>
-            <button class="ai-send" id="ai-send-btn" onclick="sendAiPrompt()">Ask</button>
-          </div>
-          <div class="ai-status" id="ai-status">Ctrl+Enter to send</div>
-        </div>
       </div>
 
       <!-- Edit panel -->
@@ -2121,9 +2092,13 @@ function buildMatrixRows(){
         continue;
       }
       let isFirstHarmInSit=true;
+      // If neither control nor verification columns are visible, every per-attachment
+      // row would render empty (the per-row content lives in those two columns only).
+      // Collapse to one row per (situation, harm) pair in that case.
+      const collapseToHarm=!matrixColumns.ctrl&&!matrixColumns.verif;
       for(const {harm,edge} of harmEdges){
         const atts=edgeAttachments(edge);
-        if(!atts.length){
+        if(!atts.length||collapseToHarm){
           rows.push({
             id:`${hazIdx}.${String(sitIdx).padStart(3,'0')}`,
             hazard:hz, sit, edge, harm, attachment:null, control:null,
@@ -4387,207 +4362,6 @@ saveEdit=function(){
   scheduleSave();
 };
 
-
-// ── AI Assistant ───────────────────────────────────────────────────
-let aiPanelVisible = true;
-function toggleAiPanel(){
-  aiPanelVisible = !aiPanelVisible;
-  document.getElementById('ai-body').style.display = aiPanelVisible ? '' : 'none';
-  document.getElementById('ai-toggle').textContent = aiPanelVisible ? 'hide' : 'show';
-}
-
-function setAiStatus(msg, cls){
-  const el = document.getElementById('ai-status');
-  el.textContent = msg;
-  el.className = 'ai-status' + (cls ? ' ' + cls : '');
-}
-
-async function sendAiPrompt(){
-  const input = document.getElementById('ai-input');
-  const prompt = input.value.trim();
-  if(!prompt) return;
-
-  const btn = document.getElementById('ai-send-btn');
-  btn.disabled = true;
-  setAiStatus('Thinking…', 'thinking');
-
-  // Build context summary for Claude
-  const nodesSummary = nodes.map(n =>
-    `{id:${n.id}, type:"${n.type}", label:"${(n.label||'').replace(/"/g,'')}"${n.type==='harm'?`, severity:${n.severity||'null'}`:''}}`
-  ).join(', ');
-  const edgesSummary = edges.map(e =>
-    `{from:${e.from}, to:${e.to}${e.occurrence?`, p:${e.occurrence}`:''}}`
-  ).join(', ');
-
-  const systemPrompt = `You are an assistant helping edit a medical device hazard analysis diagram for the Atlas 360 cardiac mapping catheter (Contour Medical).
-
-The diagram has nodes and edges. You must respond ONLY with a valid JSON object — no explanation, no markdown, no code fences.
-
-Node types: hazard, situation, harm, control
-Edge rules:
-  • hazard → situation
-  • situation → harm (this edge carries occurrence, post-control values, assessment, and attached controls)
-  • harm and control are terminal — they have NO outgoing edges.
-  • Controls are NOT connected via edges. Instead, controls are attached to a Situation→Harm edge using the attach_control / detach_control / set_attachment_verification operations.
-
-Field locations (schema v2):
-  • severity lives on the harm node (it is invariant — same severity wherever this harm appears)
-  • occurrence, postSeverity, postOccurrence, assessment live on the Situation→Harm edge (one per (situation, harm) pair)
-  • verification (default) lives on the control node; per-attachment verification override lives on the edge.controls entry
-
-Severity scale: 1=Negligible, 2=Minor, 3=Moderate, 4=Serious, 5=Catastrophic
-Occurrence scale: 1=Improbable, 2=Remote, 3=Occasional, 4=Common, 5=Frequent
-Assessment values: "Acceptable", "Not Acceptable", "Broadly Acceptable", or ""
-
-Current diagram state:
-Nodes: [${nodesSummary}]
-Edges: [${edgesSummary}]
-Next available ID: ${nextId}
-
-Respond with ONLY this JSON structure:
-{
-  "actions": [
-    {"op":"add_node","type":"harm","label":"...","severity":3,"x":200,"y":100},
-    {"op":"add_node","type":"control","label":"...","verification":"default verification text"},
-    {"op":"add_edge","from":5,"to":12},
-    {"op":"update_node","id":5,"label":"new label","severity":4},
-    {"op":"delete_node","id":7},
-    {"op":"delete_edge","from":3,"to":7},
-    {"op":"set_edge_field","from":5,"to":12,"occurrence":2,"postSeverity":3,"postOccurrence":1,"assessment":"Acceptable","notes":"per-path note"},
-    {"op":"attach_control","from":5,"to":12,"controlId":20,"verification":"optional per-attachment override"},
-    {"op":"detach_control","from":5,"to":12,"controlId":20}
-  ],
-  "summary": "One sentence describing what was done."
-}
-
-Only include the fields relevant to each action. For add_node, x and y are optional (auto-placed if omitted).
-Use set_edge_field to set occurrence and post-control values on a Situation→Harm edge.
-Use attach_control to add a control to a Situation→Harm edge; the controlId must reference an existing control node.`;
-
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: [{role:'user', content: prompt}]
-      })
-    });
-
-    const data = await resp.json();
-    const raw = data.content?.[0]?.text || '';
-    const clean = raw.replace(/```json|```/g,'').trim();
-    const result = JSON.parse(clean);
-
-    if(!result.actions || !Array.isArray(result.actions)){
-      throw new Error('No actions returned');
-    }
-
-    pushUndo(`AI: ${result.summary || prompt.substring(0,60)}`);
-
-    let addedIds = {};
-    for(const action of result.actions){
-      if(action.op === 'add_node'){
-        const id = nextId++;
-        addedIds[action.tempId || id] = id;
-        const x = action.x ?? (Math.random()*400 - 200);
-        const y = action.y ?? (Math.random()*400 - 200);
-        const n = {
-          id, type:action.type, label:action.label||'New node',
-          x, y, w:190, h:60,
-          severity:action.severity||null,
-          sequence:'',
-          notes:action.notes||'',
-          verification:action.verification||'',
-          evidence:[]
-        };
-        nodes.push(n); measure(n);
-      } else if(action.op === 'add_edge'){
-        const from = addedIds[action.from] || action.from;
-        const to = addedIds[action.to] || action.to;
-        if(!edges.some(e=>e.from===from&&e.to===to)){
-          edges.push({from, to, occurrence:action.occurrence||null, controls:[]});
-        }
-      } else if(action.op === 'update_node'){
-        const n = nodes.find(n=>n.id===action.id);
-        if(n){
-          if(action.label !== undefined) n.label = action.label;
-          if(action.severity !== undefined) n.severity = action.severity;
-          if(action.notes !== undefined) n.notes = action.notes;
-          if(action.verification !== undefined) n.verification = action.verification;
-          if(action.sequence !== undefined) n.sequence = action.sequence;
-          measure(n);
-        }
-      } else if(action.op === 'delete_node'){
-        // Also strip any references to this node from edge.controls arrays
-        nodes = nodes.filter(n=>n.id!==action.id);
-        edges = edges.filter(e=>e.from!==action.id&&e.to!==action.id);
-        edges.forEach(e=>{
-          if(Array.isArray(e.controls)){
-            e.controls = e.controls.filter(c=>c.controlId!==action.id);
-          }
-        });
-      } else if(action.op === 'delete_edge'){
-        const from = addedIds[action.from] || action.from;
-        const to = addedIds[action.to] || action.to;
-        edges = edges.filter(e=>!(e.from===from&&e.to===to));
-      } else if(action.op === 'set_occurrence' || action.op === 'set_edge_field'){
-        // set_occurrence is back-compat alias; set_edge_field is the canonical name.
-        const from = addedIds[action.from] || action.from;
-        const to = addedIds[action.to] || action.to;
-        const e = edges.find(x=>x.from===from&&x.to===to);
-        if(e){
-          if(action.occurrence !== undefined) e.occurrence = action.occurrence;
-          if(action.postSeverity !== undefined) e.postSeverity = action.postSeverity;
-          if(action.postOccurrence !== undefined) e.postOccurrence = action.postOccurrence;
-          if(action.assessment !== undefined) e.assessment = action.assessment;
-          if(action.notes !== undefined) e.notes = action.notes;
-        }
-      } else if(action.op === 'attach_control'){
-        const from = addedIds[action.from] || action.from;
-        const to = addedIds[action.to] || action.to;
-        const controlId = addedIds[action.controlId] || action.controlId;
-        const e = edges.find(x=>x.from===from&&x.to===to);
-        if(e){
-          if(!Array.isArray(e.controls)) e.controls = [];
-          if(!e.controls.some(c=>c.controlId===controlId)){
-            e.controls.push({controlId, verification:action.verification||''});
-          }
-        }
-      } else if(action.op === 'detach_control'){
-        const from = addedIds[action.from] || action.from;
-        const to = addedIds[action.to] || action.to;
-        const controlId = addedIds[action.controlId] || action.controlId;
-        const e = edges.find(x=>x.from===from&&x.to===to);
-        if(e && Array.isArray(e.controls)){
-          e.controls = e.controls.filter(c=>c.controlId!==controlId);
-        }
-      } else if(action.op === 'set_attachment_verification'){
-        const from = addedIds[action.from] || action.from;
-        const to = addedIds[action.to] || action.to;
-        const controlId = addedIds[action.controlId] || action.controlId;
-        const e = edges.find(x=>x.from===from&&x.to===to);
-        if(e && Array.isArray(e.controls)){
-          const att = e.controls.find(c=>c.controlId===controlId);
-          if(att) att.verification = action.verification||'';
-        }
-      }
-    }
-
-    updAll(); draw();
-    setAiStatus(result.summary || `Done — ${result.actions.length} change(s) made`);
-    input.value = '';
-    await logChange(`AI: ${result.summary || prompt.substring(0,80)}`);
-
-  } catch(err){
-    console.error('AI error:', err);
-    setAiStatus('Could not apply changes — try rephrasing', 'err');
-  }
-
-  btn.disabled = false;
-}
 
 
 // ── Panel resize ───────────────────────────────────────────────────
