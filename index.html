@@ -69,6 +69,12 @@ body.view-matrix .filter-bar{display:none;}
    top so the user can switch contexts (clicking a tab closes the edit panel). */
 body.editing .tab-body{display:none;}
 body.editing #search-wrap{display:none;}
+/* In edit mode, the edit panel takes the full remaining height of the panel and
+   scrolls internally. Without overriding max-height, the panel stays capped at 56%
+   even though the tab-body sibling is hidden — that's the source of cut-off content. */
+body.editing .edit-panel{max-height:none;flex:1;min-height:0;}
+/* The minimap floats over .main and is only meaningful for the canvas. Hide in matrix view. */
+body.view-matrix .minimap{display:none;}
 
 /* Matrix view container — fills the same area as the canvas */
 .matrix-view{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--surface);}
@@ -698,7 +704,11 @@ let gapFilter='all';
 // ── Matrix view state ──
 // activeView: 'graph' (canvas) or 'matrix' (table)
 // matrixColumns: which columns are visible in the matrix view
+// matrixSelectedRow: index of the row most recently clicked, so we highlight ONLY
+//   that row — rather than every row that happens to reference the same entity.
+//   (Multiple matrix rows can share a Harm node, for instance.)
 let activeView='graph';
+let matrixSelectedRow=null;
 let matrixColumns={
   id:true, hazard:true, seq:true, sit:true, harm:true,
   initial:true,        // group: severity, occurrence, init risk
@@ -1363,6 +1373,7 @@ function addNode(wx,wy,type){
 // when an edit panel (node or edge) is open, giving the edit form the full panel height.
 function setEditMode(on){
   document.body.classList.toggle('editing', !!on);
+  if(!on)matrixSelectedRow=null;
 }
 
 function selectNode(n){
@@ -2510,6 +2521,7 @@ function matrixClick(rowIdx,target){
   const rows=buildMatrixRows();  // recompute (cheap; data is small)
   const r=rows[rowIdx];
   if(!r)return;
+  matrixSelectedRow=rowIdx;
   if(target==='hazard'&&r.hazard) selectFromIdNoCenter(r.hazard.id);
   else if(target==='sit'&&r.sit) selectFromIdNoCenter(r.sit.id);
   else if(target==='harm'&&r.harm) selectFromIdNoCenter(r.harm.id);
@@ -2525,24 +2537,15 @@ function selectFromIdNoCenter(id){
   if(n){selectNode(n);highlightMatrixSelection();}
 }
 
-// Re-paint the matrix-selected row class based on the currently selected node/edge.
+// Re-paint the matrix-selected row class — highlights ONLY the row most recently
+// clicked (matrixSelectedRow), so rows that share the same harm/control/situation
+// as the selected entity don't all light up together.
 function highlightMatrixSelection(){
   const tbody=document.getElementById('matrix-tbody');
   if(!tbody)return;
   const rows=tbody.querySelectorAll('tr');
-  const matrixRows=buildMatrixRows();
   rows.forEach((tr,i)=>{
-    const r=matrixRows[i];
-    if(!r){tr.classList.remove('matrix-selected');return;}
-    let sel=false;
-    if(selected){
-      if(selected.id===r.hazard?.id) sel=true;
-      if(selected.id===r.sit?.id) sel=true;
-      if(selected.id===r.harm?.id) sel=true;
-      if(selected.id===r.control?.id) sel=true;
-    }
-    if(selEdge&&r.edge&&selEdge===r.edge) sel=true;
-    tr.classList.toggle('matrix-selected',sel);
+    tr.classList.toggle('matrix-selected', selected!=null||selEdge!=null ? i===matrixSelectedRow : false);
   });
 }
 
