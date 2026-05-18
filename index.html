@@ -4093,6 +4093,12 @@ async function doRestore(ev){
     alert('Not a valid backup file (missing nodes/edges).');
     ev.target.value='';return;
   }
+  // BLOCK if not logged in — restoring before Supabase is connected would update
+  // the local canvas but never persist, and a refresh would silently revert.
+  if(!sb){
+    alert('Not signed in to the cloud yet — restoring now would only update your local view, and a page refresh would revert it.\n\nSign in first, then click Restore again.');
+    ev.target.value='';return;
+  }
   // Apply locally
   pushUndo();
   const migrated=migrateBackupV1toV2(data.nodes,data.edges);
@@ -4109,14 +4115,28 @@ async function doRestore(ev){
   setSyncBadge('saving','Restoring…');
   const beforeUnloadGuard=ev2=>{ev2.preventDefault();ev2.returnValue='Restore in progress — save still in flight. Leave anyway?';return ev2.returnValue;};
   window.addEventListener('beforeunload',beforeUnloadGuard);
-  // Force the save through even if the hash machinery would otherwise no-op it
+  // Force the save through:
+  //  • clear lastSavedHash so the hash-match guard can't no-op us
+  //  • pin isRemoteUpdate=false so a stuck realtime flag can't suppress the write
+  //    (the doRestore comment promised this; the original code never actually did it)
   lastSavedHash='';
+  const savedRemoteState=isRemoteUpdate;
+  isRemoteUpdate=false;
   const restoreDesc=migrated.didMigrate
     ? `Restored from backup (v1 → v2 migration: ${migrated.notes})`
     : `Restored from backup (${nodes.length} nodes, ${edges.length} edges)`;
+  let saveOk=false;
   try{
-    await saveToSupabase(restoreDesc);
-    if(migrated.didMigrate){
+    saveOk=await saveToSupabase(restoreDesc);
+    if(!saveOk){
+      // Silent skip — surface it loudly. This is exactly the bug that caused the
+      // "restored, then refreshed, lost everything" report.
+      setSyncBadge('err','Restore NOT saved');
+      alert('Restore loaded locally but the cloud save was skipped (likely a transient sync conflict).\n\n'+
+            'Your screen shows the restored data, but a refresh would revert it.\n\n'+
+            'Click Backup right now to keep a JSON copy, then try Restore again.');
+      console.error('Restore save returned false — likely isRemoteUpdate or sb-missing race');
+    } else if(migrated.didMigrate){
       toast('Restored & migrated v1 → v2 ('+migrated.notes+') — saved');
     } else {
       toast('Restored '+nodes.length+' nodes — saved');
@@ -4129,6 +4149,11 @@ async function doRestore(ev){
           'Check your network and click the Backup button to export a JSON copy before refreshing.');
     console.error('Restore save error:',err);
   }finally{
+    // Only restore the prior isRemoteUpdate state if we actually changed it AND
+    // the save failed — on success we want the flag to stay false so subsequent
+    // saves work normally. (savedRemoteState would only be true if there was a
+    // genuinely stuck flag we should NOT re-enable.)
+    if(!saveOk && savedRemoteState) isRemoteUpdate=savedRemoteState;
     window.removeEventListener('beforeunload',beforeUnloadGuard);
   }
 }
@@ -5242,20 +5267,52 @@ async function loadFromSupabase(){
   }catch(e){setSyncBadge('err','Load failed');console.error(e);}
 }
 
+// Returns true if the write completed, false if it was suppressed (no sb, remote
+// update in progress, hash matched) or failed. Callers that depend on the save
+// landing (Restore, in particular) MUST check the return value — a silent
+// skip here previously caused restored data to vanish on refresh.
 async function saveToSupabase(changeDesc){
-  if(!sb||isRemoteUpdate)return;
+  if(!sb){console.warn('saveToSupabase skipped: no Supabase client (not logged in?)');return false;}
+  if(isRemoteUpdate){console.warn('saveToSupabase skipped: remote update in progress');return false;}
   const payload={nodes,edges};
   const hash=JSON.stringify(payload);
-  if(hash===lastSavedHash)return;
+  if(hash===lastSavedHash)return false;
   setSyncBadge('saving','Saving…');
   try{
     const{error}=await sb.from('diagrams').upsert({id:DOC_ID,data:payload,updated_at:new Date().toISOString()});
     if(error)throw error;
     lastSavedHash=hash;
     setSyncBadge('saved','Saved');
+    // Emergency local backup — last successful save is mirrored to localStorage
+    // so we can offer recovery if a future save silently fails again.
+    try{
+      localStorage.setItem('atlas360_lastSave',JSON.stringify({
+        savedAt:new Date().toISOString(),
+        nodeCount:nodes.length,
+        edgeCount:edges.length,
+        description:changeDesc||'',
+        payload
+      }));
+    }catch(e){/* quota exceeded or storage disabled — non-fatal */}
     await logChange(changeDesc||'Diagram updated');
-  }catch(e){setSyncBadge('err','Save failed');console.error(e);}
+    return true;
+  }catch(e){setSyncBadge('err','Save failed');console.error(e);throw e;}
 }
+
+// Emergency local recovery — pull the last-saved snapshot from localStorage.
+// Exposed on window for ad-hoc console access if a user reports lost data.
+window.recoverLastLocalSave=function(){
+  try{
+    const raw=localStorage.getItem('atlas360_lastSave');
+    if(!raw){console.log('No local backup found.');return null;}
+    const snap=JSON.parse(raw);
+    console.log('Local backup from',snap.savedAt,'—',snap.nodeCount,'nodes,',snap.edgeCount,'edges');
+    console.log('Description:',snap.description);
+    console.log('To restore: copy the line below, save as backup.json, click Restore.');
+    console.log(JSON.stringify(snap.payload));
+    return snap;
+  }catch(e){console.error('Recovery failed:',e);return null;}
+};
 
 
 // ── Audit log ──────────────────────────────────────────────────────
