@@ -345,6 +345,35 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 .ev-cancel-btn:hover{background:var(--border);}
 .ev-empty{font-size:11px;color:var(--text3);font-style:italic;padding:4px 0;}
 
+/* ── Comments section (collaborative audit thread) ── */
+.cm-section{margin-top:10px;border-top:1px solid var(--border);padding-top:8px;}
+.cm-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.cm-section-title{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text3);font-family:'IBM Plex Mono',monospace;}
+.cm-count{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;}
+.cm-item{background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:4px;padding:6px 8px;margin-bottom:5px;font-size:11.5px;}
+.cm-item-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;
+  font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);}
+.cm-item-author{font-weight:600;color:var(--text2);}
+.cm-item-time{color:var(--text3);}
+.cm-item-text{color:var(--text);line-height:1.45;white-space:pre-wrap;word-wrap:break-word;}
+.cm-item-actions{margin-top:3px;text-align:right;}
+.cm-del-btn{background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;
+  padding:1px 5px;border-radius:3px;font-family:'IBM Plex Mono',monospace;}
+.cm-del-btn:hover{color:#dc2626;background:#fef2f2;}
+.cm-form{margin-top:6px;}
+.cm-form textarea{width:100%;font-size:11.5px;padding:5px 7px;border:1px solid var(--border);
+  border-radius:4px;background:var(--surface2);color:var(--text);font-family:'IBM Plex Sans',sans-serif;
+  resize:vertical;outline:none;transition:border-color .12s;}
+.cm-form textarea:focus{border-color:var(--accent);}
+.cm-form-btns{display:flex;gap:6px;margin-top:5px;justify-content:flex-end;}
+.cm-save-btn{background:var(--accent);color:#fff;border:1px solid var(--accent);
+  font-size:11px;padding:3px 10px;border-radius:3px;cursor:pointer;
+  font-family:'IBM Plex Mono',monospace;}
+.cm-save-btn:hover{background:#1d4ed8;}
+.cm-empty{font-size:11px;color:var(--text3);font-style:italic;padding:3px 0;}
+
 
 </style>
 </head>
@@ -412,7 +441,12 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
   <button class="fbtn fz3 on" id="f-z3" onclick="toggleFilter('z3')">Z3</button>
   <button class="fbtn on"     id="f-zu" onclick="toggleFilter('zu')">Unassessed</button>
   <button class="fbtn on" id="f-noctrl" onclick="toggleFilter('noctrl')" title="Show only Situation→Harm pairs with no Risk Control connected" style="border-color:rgba(139,92,246,.4);color:#7c3aed;">No Control</button>
-  <button class="fbtn fpred off" id="f-pred" onclick="togglePredicateFilter()" title="Highlight nodes with predicate product evidence attached">⬡ Predicate Evidence</button>
+  <button class="fbtn off" id="f-pocc" onclick="togglePOccLabels()" title="Show P= (occurrence) labels on Situation→Harm arrows" style="color:#1d4ed8;border-color:rgba(37,99,235,.45);background:#eff6ff;">P= labels</button>
+  <button class="fbtn" id="f-needswork" onclick="focusNeedsWork()" title="Focus on all items flagged as Needs Work" style="color:#dc2626;border-color:rgba(220,38,38,.45);background:#fef2f2;">⚑ Needs Work</button>
+  <div style="position:relative;display:inline-block;">
+    <button class="fbtn" id="harm-filter-btn" onclick="toggleHarmFilterMenu(event)" title="Pick a specific Harm to focus on" style="color:#1a7a4a;border-color:rgba(26,122,74,.4);background:#f2faf6;">▼ Focus on Harm</button>
+    <div id="harm-filter-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:1000;max-height:340px;overflow-y:auto;min-width:280px;padding:4px;"></div>
+  </div>
   <div class="sep"></div>
   <div class="focus-banner" id="focus-banner">
     <span id="focus-label">Focused on: —</span>
@@ -459,8 +493,9 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
       <div class="search-wrap" id="search-wrap">
         <div class="search-wrap-inner">
           <span class="search-icon">⌕</span>
-          <input class="search-input" id="search-input" type="text" placeholder="Search nodes…" oninput="onSearch(this.value)">
+          <input class="search-input" id="search-input" type="text" placeholder="Search all fields…" oninput="onSearch(this.value)" onkeydown="if(event.key==='Enter')focusSearchResults()">
         </div>
+        <button class="btn" id="focus-results-btn" onclick="focusSearchResults()" style="display:none;margin-top:4px;width:100%;font-size:11px;padding:4px 8px;" title="Show only the search matches and their connected chains (Enter)">Focus results</button>
       </div>
 
       <div class="tab-body">
@@ -508,6 +543,15 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
 
         <label class="ep-lbl">Notes / References</label>
         <textarea id="ed-notes" rows="3" placeholder="REQ-XXXX, SOP refs, rationale, reviewer..."></textarea>
+
+        <!-- Needs Work flag: marks a node for follow-up. Filterable. -->
+        <div class="nw-block" style="margin-top:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#fffbf2">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:#92400e;font-weight:600">
+            <input type="checkbox" id="ed-needswork" onchange="onNeedsWorkChange()" style="width:auto;margin:0;cursor:pointer">
+            <span>⚑ Flag as Needs Work</span>
+          </label>
+          <textarea id="ed-needswork-note" rows="2" placeholder="What needs doing? (optional)" style="margin-top:5px;display:none;font-size:11px;background:#fff"></textarea>
+        </div>
 
         <div id="situation-fields" style="display:none">
           <label class="ep-lbl">Sequence of Events <span style="font-weight:400;text-transform:none;letter-spacing:0">(numbered steps → hazardous situation)</span></label>
@@ -564,6 +608,21 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
                 <button class="ev-save-btn" onclick="saveEvEntry()">Save entry</button>
                 <button class="ev-cancel-btn" onclick="hideEvForm()">Cancel</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comments section: collaborative audit thread, visible to everyone on the diagram -->
+        <div class="cm-section" id="cm-section">
+          <div class="cm-section-hdr">
+            <span class="cm-section-title">Comments</span>
+            <span class="cm-count" id="cm-count"></span>
+          </div>
+          <div id="cm-list"></div>
+          <div class="cm-form">
+            <textarea id="cm-input" rows="2" placeholder="Add a comment…"></textarea>
+            <div class="cm-form-btns">
+              <button class="cm-save-btn" onclick="addComment()">Post comment</button>
             </div>
           </div>
         </div>
@@ -731,6 +790,10 @@ let _focusLayoutActive = false;
 // noctrl: when false (active), hide situations/harms that DO have controls — showing only unprotected pairs
 let filters={hazard:true,situation:true,harm:true,control:true,z1:true,z2:true,z3:true,zu:true,noctrl:true};
 
+// Whether to draw the P= occurrence label on Situation→Harm arrows. Off by default
+// to reduce canvas noise; toggle from the filter bar's "P= labels" button.
+let showPOccLabels=false;
+
 // Focus mode: set of node ids to show (null = all)
 let focusSet=null;
 
@@ -872,21 +935,82 @@ function updateHighlights(hovNode){
 }
 
 // ── Filters ────────────────────────────────────────────────────────
+// Toggle the global P= label visibility on Situation→Harm arrows.
+// Hidden by default; on-state badge shows the count of Situation→Harm edges
+// so it's obvious how many labels will appear.
+function togglePOccLabels(){
+  showPOccLabels=!showPOccLabels;
+  const btn=document.getElementById('f-pocc');
+  if(btn){
+    btn.classList.toggle('on',showPOccLabels);
+    btn.classList.toggle('off',!showPOccLabels);
+    btn.textContent=showPOccLabels?'P= labels (showing)':'P= labels';
+  }
+  draw();
+}
+
 let predicateFilterActive=false;
+// Kept for backwards-compat in case any saved state or external code still
+// references this; the toolbar button has been removed.
 function togglePredicateFilter(){
   predicateFilterActive=!predicateFilterActive;
   const btn=document.getElementById('f-pred');
-  btn.classList.toggle('on',predicateFilterActive);
-  btn.classList.toggle('off',!predicateFilterActive);
-  if(predicateFilterActive){
-    const cnt=nodes.filter(n=>(n.evidence||[]).some(e=>e.type==='predicate')).length;
-    btn.textContent=`⬡ Predicate Evidence (${cnt})`;
-    toast(`${cnt} node${cnt!==1?'s':''} with predicate evidence`);
-  } else {
-    btn.textContent='⬡ Predicate Evidence';
+  if(btn){
+    btn.classList.toggle('on',predicateFilterActive);
+    btn.classList.toggle('off',!predicateFilterActive);
+    if(predicateFilterActive){
+      const cnt=nodes.filter(n=>(n.evidence||[]).some(e=>e.type==='predicate')).length;
+      btn.textContent=`⬡ Predicate Evidence (${cnt})`;
+      toast(`${cnt} node${cnt!==1?'s':''} with predicate evidence`);
+    } else {
+      btn.textContent='⬡ Predicate Evidence';
+    }
   }
   draw();updList();
 }
+// Harm filter dropdown: lists all Harm nodes; selecting one auto-focuses on
+// its full upstream + downstream chain. Closes on outside click.
+function toggleHarmFilterMenu(ev){
+  if(ev)ev.stopPropagation();
+  const menu=document.getElementById('harm-filter-menu');
+  if(!menu)return;
+  if(menu.style.display==='block'){menu.style.display='none';return;}
+  // Build the list
+  const harms=nodes.filter(n=>n.type==='harm').sort((a,b)=>(a.label||'').localeCompare(b.label||''));
+  if(!harms.length){
+    menu.innerHTML='<div style="font-size:11px;color:var(--text3);padding:8px 10px">No Harms in this diagram</div>';
+  } else {
+    menu.innerHTML=harms.map(h=>{
+      const iz=zone(h.severity,harmWorstOcc(h));
+      const zoneTxt=iz?`<span style="font-size:9px;color:var(--text3);margin-left:6px">Z${iz}</span>`:'';
+      const label=(h.label||'').replace(/</g,'&lt;');
+      return `<div class="harm-menu-item" onclick="pickHarmFilter(${h.id})" style="padding:5px 10px;font-size:11px;cursor:pointer;border-radius:3px;display:flex;justify-content:space-between;align-items:center;gap:8px;"
+        onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</span>${zoneTxt}
+      </div>`;
+    }).join('');
+  }
+  menu.style.display='block';
+  // Close on outside click
+  setTimeout(()=>{
+    const closer=(e)=>{
+      if(!menu.contains(e.target)&&e.target.id!=='harm-filter-btn'){
+        menu.style.display='none';
+        document.removeEventListener('click',closer);
+      }
+    };
+    document.addEventListener('click',closer);
+  },0);
+}
+
+function pickHarmFilter(harmId){
+  const menu=document.getElementById('harm-filter-menu');
+  if(menu)menu.style.display='none';
+  const h=nodes.find(n=>n.id===harmId&&n.type==='harm');
+  if(!h){toast('Harm not found');return;}
+  focusOnNode(h);
+}
+
 function toggleFilter(key){
   filters[key]=!filters[key];
   const btn=document.getElementById('f-'+key);
@@ -934,23 +1058,67 @@ function activateNoCtrlFilter(){
 
 function focusSelected(){
   if(!selected){toast('Select a node first');return;}
-  const ids=new Set([selected.id]);
-  let frontier=[selected.id];
+  focusOnNode(selected);
+}
+
+// Compute the full upstream + downstream connected chain for a given node.
+// Bidirectional BFS so focusing on a Harm surfaces its Hazard/Situation parents
+// AND its downstream Controls. In schema v2, Risk Controls are attached to the
+// Situation→Harm edge's `controls[]` rather than connected via a harm→control
+// edge — so we handle both directions of that attachment explicitly.
+function computeFocusIds(startNode){
+  const ids=new Set([startNode.id]);
+
+  // If starting on a Control, seed the frontier with every Situation→Harm edge
+  // that references this control (its "upstream" in schema v2).
+  if(startNode.type==='control'){
+    edges.forEach(e=>{
+      if(Array.isArray(e.controls)&&e.controls.some(a=>a&&a.controlId===startNode.id)){
+        ids.add(e.from); ids.add(e.to);
+      }
+    });
+  }
+
+  let frontier=[...ids];
   for(let depth=0;depth<20;depth++){
     const next=[];
     frontier.forEach(id=>{
       edges.forEach(e=>{
         if(e.from===id&&!ids.has(e.to)){ids.add(e.to);next.push(e.to);}
+        if(e.to===id&&!ids.has(e.from)){ids.add(e.from);next.push(e.from);}
       });
     });
     if(!next.length)break;
     frontier=next;
   }
+
+  // Pull in edge-attached controls for any Situation→Harm edge whose endpoints
+  // are both in scope (covers the schema-v2 controls[] downstream attachment).
+  edges.forEach(e=>{
+    if(!Array.isArray(e.controls)||!e.controls.length)return;
+    if(ids.has(e.from)&&ids.has(e.to)){
+      e.controls.forEach(att=>{
+        if(att&&att.controlId!=null) ids.add(att.controlId);
+      });
+    }
+  });
+  return ids;
+}
+
+// Focus on a specific node (used by Harm filter, focus-by-id, etc.).
+function focusOnNode(node){
+  if(!node)return;
+  selected=node;selEdge=null;
+  const ids=computeFocusIds(node);
   focusSet=ids;
 
-  // Save current positions before re-layout
-  _savedPositions={};
-  nodes.forEach(n=>{ _savedPositions[n.id]={x:n.x,y:n.y}; });
+  // Save current positions before re-layout — but only if we don't already have
+  // saved positions from a prior focus (otherwise we'd overwrite the originals
+  // with the previous focus's laid-out coordinates).
+  if(!_focusLayoutActive || !_savedPositions){
+    _savedPositions={};
+    nodes.forEach(n=>{ _savedPositions[n.id]={x:n.x,y:n.y}; });
+  }
   _focusLayoutActive=true;
 
   // Layout visible nodes into clean hierarchy
@@ -1137,7 +1305,11 @@ function drawEdge(e,highlighted){
     ctx.fillStyle=isActive?'#2563eb':'rgba(75,90,125,.55)';ctx.beginPath();ctx.moveTo(x2,y2);
     ctx.lineTo(tp.x-any*5,tp.y+anx*5);ctx.lineTo(tp.x+any*5,tp.y-anx*5);ctx.closePath();ctx.fill();}
 
-  if(src.type==='situation'&&dst.type==='harm'){
+  // Situation→Harm: render the P= occurrence badge. Hidden by default to reduce
+  // canvas noise; the toolbar's "P= labels" toggle controls global visibility.
+  // We always render for the currently-selected/hovered edge so the user can see
+  // its value when interacting with it.
+  if(src.type==='situation'&&dst.type==='harm' && (showPOccLabels || isActive)){
     const mid={x:cpx,y:cpy},occ=e.occurrence,has=occ&&occ>0;
     const bw=38*zoom,bh=18*zoom;
     ctx.globalAlpha=highlighted?1:.2;
@@ -1159,18 +1331,15 @@ function drawNode(n){
   const st=TS[n.type]||TS.hazard;
   const isSel=n===selected,isHov=n===hov;
   const dimmed=highlightIds.size>0&&!highlightIds.has(n.id);
-  // Predicate filter: dim nodes with no predicate evidence
-  const predDimmed=predicateFilterActive&&!(n.evidence||[]).some(e=>e.type==='predicate');
   // In connect mode with a source selected, dim nodes that are not valid targets
   const activeSrc=connectDrag||(connectMode&&connectSrc?connectSrc:null);
   const invalidTarget=activeSrc&&n!==activeSrc&&!isValidTarget(n);
-  // Search highlight
+  // Search highlight (matches any searchable field on the node)
   const sq=searchQuery.toLowerCase();
-  const searchMatch=sq&&n.label.toLowerCase().includes(sq);
+  const searchMatch=sq&&nodeMatchesSearch(n,sq);
 
   ctx.save();
   if(invalidTarget) ctx.globalAlpha=0.18;
-  else if(predDimmed) ctx.globalAlpha=0.18;
   else if(dimmed) ctx.globalAlpha=0.22;
   else ctx.globalAlpha=1;
   if(isSel){ctx.shadowColor=st.bd;ctx.shadowBlur=10;}
@@ -1183,19 +1352,31 @@ function drawNode(n){
   else{ctx.strokeStyle=(isSel||isHov)?st.bd:st.bd+'88';ctx.lineWidth=isSel?2:1;ctx.stroke();}
   ctx.shadowBlur=0;
 
-  // Predicate evidence ring: amber dashed outline
-  const hasEv=(n.evidence||[]).some(e=>e.type==='predicate');
-  if(hasEv){
+  // (Predicate evidence ring/dot removed per user preference — evidence data
+  //  is still stored on the node and viewable in the Evidence Sources section.)
+
+  // Needs Work flag: red-orange flag glyph + subtle ring. Top-LEFT corner so it
+  // doesn't collide with the predicate evidence dot (top-right).
+  if(n.needsWork){
     ctx.save();
-    ctx.beginPath();ctx.roundRect(x-2,y-2,w+4,h+4,r+2);
-    ctx.strokeStyle='#f59e0b';ctx.lineWidth=2;
-    ctx.setLineDash([5*zoom,3*zoom]);
-    ctx.globalAlpha=predicateFilterActive?0.9:0.55;
+    // Outer ring — different dash pattern to distinguish from predicate amber
+    ctx.beginPath();ctx.roundRect(x-3,y-3,w+6,h+6,r+3);
+    ctx.strokeStyle='#dc2626';ctx.lineWidth=2*zoom>1.5?2:1.5;
+    ctx.setLineDash([2*zoom,4*zoom]);
+    ctx.globalAlpha=0.7;
     ctx.stroke();
     ctx.setLineDash([]);
-    // Small amber dot top-right corner
-    ctx.beginPath();ctx.arc(x+w-5*zoom,y+5*zoom,4*zoom,0,Math.PI*2);
-    ctx.fillStyle='#f59e0b';ctx.globalAlpha=predicateFilterActive?1:0.7;
+    // Filled flag triangle/glyph top-left
+    const fx=x+5*zoom, fy=y+3*zoom, fs=8*zoom;
+    ctx.fillStyle='#dc2626';ctx.globalAlpha=1;
+    // Flag pole
+    ctx.fillRect(fx,fy,1.4*zoom,fs);
+    // Flag pennant (triangle)
+    ctx.beginPath();
+    ctx.moveTo(fx+1.4*zoom, fy);
+    ctx.lineTo(fx+6*zoom,    fy+1.8*zoom);
+    ctx.lineTo(fx+1.4*zoom,  fy+3.8*zoom);
+    ctx.closePath();
     ctx.fill();
     ctx.restore();
   }
@@ -1425,16 +1606,148 @@ function switchTab(tab){
 }
 
 // ── Search ─────────────────────────────────────────────────────────
+// Match against all visible/editable text fields on a node.
+function nodeMatchesSearch(n,sq){
+  if(!sq)return false;
+  if((n.label||'').toLowerCase().includes(sq))return true;
+  if((n.notes||'').toLowerCase().includes(sq))return true;
+  if((n.sequence||'').toLowerCase().includes(sq))return true;
+  if((n.verification||'').toLowerCase().includes(sq))return true;
+  if(String(n.id)===sq)return true;
+  if((n.type||'').toLowerCase().includes(sq))return true;
+  if((n.needsWorkNote||'').toLowerCase().includes(sq))return true;
+  if(Array.isArray(n.evidence)){
+    for(const ev of n.evidence){
+      if((ev.product||'').toLowerCase().includes(sq))return true;
+      if((ev.source||'').toLowerCase().includes(sq))return true;
+      if((ev.detail||'').toLowerCase().includes(sq))return true;
+      if((ev.type||'').toLowerCase().includes(sq))return true;
+    }
+  }
+  if(Array.isArray(n.comments)){
+    for(const c of n.comments){
+      if((c.text||'').toLowerCase().includes(sq))return true;
+      if((c.author||'').toLowerCase().includes(sq))return true;
+    }
+  }
+  return false;
+}
+
+// Match against an edge's text-ish fields (assessment, verification on controls).
+// Returns true if matched — used so search can also surface an edge that contains the term.
+function edgeMatchesSearch(e,sq){
+  if(!sq)return false;
+  if((e.assessment||'').toLowerCase().includes(sq))return true;
+  if(Array.isArray(e.controls)){
+    for(const att of e.controls){
+      if((att.verification||'').toLowerCase().includes(sq))return true;
+    }
+  }
+  return false;
+}
+
+// All nodes that match (directly or via an attached edge).
+function searchMatchedNodes(sq){
+  if(!sq)return [];
+  const matchIds=new Set();
+  nodes.forEach(n=>{ if(nodeMatchesSearch(n,sq)) matchIds.add(n.id); });
+  // If an edge matches, surface both endpoints.
+  edges.forEach(e=>{
+    if(edgeMatchesSearch(e,sq)){ matchIds.add(e.from); matchIds.add(e.to); }
+  });
+  return [...matchIds].map(id=>nodes.find(n=>n.id===id)).filter(Boolean);
+}
+
 function onSearch(val){
   searchQuery=val.trim();
   updList();
   if(searchQuery){
-    // Jump canvas to first match
+    // Jump canvas to first match (across all searchable fields, not just label)
     const sq=searchQuery.toLowerCase();
-    const match=visibleNodes().find(n=>n.label.toLowerCase().includes(sq));
-    if(match){pan.x=canvas.offsetWidth/2-match.x*zoom;pan.y=canvas.offsetHeight/2-match.y*zoom;}
+    const matches=searchMatchedNodes(sq).filter(n=>isVisible(n));
+    if(matches.length){
+      const m=matches[0];
+      pan.x=canvas.offsetWidth/2-m.x*zoom;
+      pan.y=canvas.offsetHeight/2-m.y*zoom;
+    }
   }
+  // Reflect match count on the Focus Results button
+  updateFocusResultsBtn();
   draw();
+}
+
+// Show/hide the "Focus results" button next to the search input and refresh its label.
+function updateFocusResultsBtn(){
+  const btn=document.getElementById('focus-results-btn');
+  if(!btn)return;
+  const sq=searchQuery.toLowerCase();
+  if(!sq){ btn.style.display='none'; return; }
+  const count=searchMatchedNodes(sq).length;
+  btn.style.display=count?'block':'none';
+  btn.textContent=`Focus ${count} result${count===1?'':'s'}`;
+  btn.disabled=!count;
+}
+
+// Focus on all nodes flagged as Needs Work — same union-of-chains pattern as
+// focusSearchResults, but the input set is `n.needsWork===true` instead of
+// search matches.
+function focusNeedsWork(){
+  const flagged=nodes.filter(n=>n.needsWork);
+  if(!flagged.length){toast('No items flagged as Needs Work');return;}
+  const ids=new Set();
+  flagged.forEach(m=>{
+    const chain=computeFocusIds(m);
+    chain.forEach(id=>ids.add(id));
+  });
+  focusSet=ids;
+  if(!_focusLayoutActive || !_savedPositions){
+    _savedPositions={};
+    nodes.forEach(n=>{ _savedPositions[n.id]={x:n.x,y:n.y}; });
+  }
+  _focusLayoutActive=true;
+  _applyFocusLayout(ids);
+  document.getElementById('focus-banner').style.display='flex';
+  document.getElementById('focus-label').textContent=`Focused: ${flagged.length} Needs-Work item${flagged.length===1?'':'s'}`;
+  updList();
+  toast(`Focused on ${flagged.length} flagged item${flagged.length===1?'':'s'} (${ids.size} total node${ids.size===1?'':'s'} in chain)`);
+}
+
+// Refresh the Needs Work filter button's count badge based on current flags.
+function updateNeedsWorkBtn(){
+  const btn=document.getElementById('f-needswork');
+  if(!btn)return;
+  const count=nodes.filter(n=>n.needsWork).length;
+  btn.textContent=count?`⚑ Needs Work (${count})`:'⚑ Needs Work';
+  btn.disabled=!count;
+  btn.style.opacity=count?'1':'0.55';
+  btn.style.cursor=count?'pointer':'not-allowed';
+}
+
+// Focus on all current search results — expands each match's full upstream + downstream chain
+// and shows the union. Useful for "find every node that mentions <term> and see the context".
+function focusSearchResults(){
+  const sq=searchQuery.toLowerCase();
+  if(!sq){toast('Type something to search first');return;}
+  const matches=searchMatchedNodes(sq);
+  if(!matches.length){toast('No matches to focus');return;}
+  // Union of every match's connected chain
+  const ids=new Set();
+  matches.forEach(m=>{
+    const chain=computeFocusIds(m);
+    chain.forEach(id=>ids.add(id));
+  });
+  focusSet=ids;
+  // Save originals if not already saved (re-focus safe)
+  if(!_focusLayoutActive || !_savedPositions){
+    _savedPositions={};
+    nodes.forEach(n=>{ _savedPositions[n.id]={x:n.x,y:n.y}; });
+  }
+  _focusLayoutActive=true;
+  _applyFocusLayout(ids);
+  document.getElementById('focus-banner').style.display='flex';
+  document.getElementById('focus-label').textContent=`Focused: ${matches.length} search result${matches.length===1?'':'s'} for "${searchQuery}"`;
+  updList();
+  toast(`Focused on ${matches.length} match${matches.length===1?'':'es'} (${ids.size} total node${ids.size===1?'':'s'} in chain)`);
 }
 
 function hlText(text,query){
@@ -1552,6 +1865,14 @@ function showEdit(n){
   document.getElementById('ed-label').value=n.label||'';
   document.getElementById('ed-type').value=n.type;
   document.getElementById('ed-notes').value=n.notes||'';
+  // Needs Work flag + optional note
+  const nwCb=document.getElementById('ed-needswork');
+  const nwNote=document.getElementById('ed-needswork-note');
+  if(nwCb){nwCb.checked=!!n.needsWork;}
+  if(nwNote){
+    nwNote.value=n.needsWorkNote||'';
+    nwNote.style.display=n.needsWork?'block':'none';
+  }
   const isH=n.type==='harm';
   const isSit=n.type==='situation';
   const isCtrl=n.type==='control';
@@ -1607,6 +1928,10 @@ function showEdit(n){
   // Populate evidence panel
   hideEvForm();
   renderEvList(n);
+  // Populate comments thread
+  const cmInput=document.getElementById('cm-input');
+  if(cmInput)cmInput.value='';
+  renderCommentList(n);
   // Render linked-entities section (mirrors traceability matrix Parents/Children pattern)
   renderLinkedSection(n);
 }
@@ -1867,6 +2192,29 @@ function saveEdit(){
   updAll();draw();toast('Saved');
 }
 
+// Toggle the optional note textarea when the Needs Work checkbox flips.
+// Also live-updates the canvas + filter button so the flag indicator appears
+// immediately without waiting for Save.
+function onNeedsWorkChange(){
+  if(!selected)return;
+  const nwCb=document.getElementById('ed-needswork');
+  const nwNote=document.getElementById('ed-needswork-note');
+  if(!nwCb)return;
+  const on=!!nwCb.checked;
+  // Only push undo if the flag state actually changes
+  if(!!selected.needsWork !== on) pushUndo();
+  if(nwNote)nwNote.style.display=on?'block':'none';
+  // Apply immediately so canvas/list/filter button reflect state without Save.
+  selected.needsWork=on;
+  if(nwNote)selected.needsWorkNote=nwNote.value.trim()||'';
+  updateNeedsWorkBtn();
+  updList();
+  draw();
+  // Persist + audit
+  scheduleSave&&scheduleSave();
+  logChange(`${on?'Flagged':'Unflagged'} "${(selected.label||'').substring(0,40)}" as Needs Work`);
+}
+
 // Flush whatever's currently in the edit form's DOM inputs into the `selected` node.
 // Used by saveEdit() and called proactively before any action that might shift focus
 // off the form (clicking "+ New harm", "✕ unlink", a dropdown change, etc.). Without
@@ -1882,6 +2230,15 @@ function commitPendingEdits(){
   if(lbl&&lbl.value)selected.label=lbl.value;
   if(ty)selected.type=ty.value;
   if(nt)selected.notes=nt.value;
+  // Needs Work flag + note. Logging is handled in onNeedsWorkChange (live toggle);
+  // here we just keep the data model in sync in case some other path called Save.
+  const nwCb=document.getElementById('ed-needswork');
+  const nwNote=document.getElementById('ed-needswork-note');
+  if(nwCb)selected.needsWork=!!nwCb.checked;
+  if(nwNote){
+    const v=nwNote.value.trim();
+    selected.needsWorkNote=v||'';
+  }
   if(selected.type==='harm'){
     const sv=document.getElementById('ed-sev');
     if(sv)selected.severity=+sv.value||null;
@@ -1964,6 +2321,100 @@ function renderEvList(n){
     return `<div class="ev-item" data-evtype="${e.type}">
       <button class="ev-del-btn" onclick="deleteEvEntry(${n.id},${i})" title="Remove entry">✕</button>
       ${badge}${productLine}${srcLine}${detailLine}${meta}
+    </div>`;
+  }).join('');
+}
+
+// ── Comments ─────────────────────────────────────────────────────────
+// Collaborative audit thread per node. Stored as n.comments=[{id,author,text,createdAt}].
+// Ships with the existing Supabase {nodes,edges} payload, so realtime sync is free.
+//
+// Authorship: uses `currentUser` from the login flow. Only the author can delete
+// their own comment; everyone can read. Audit log records add/delete.
+function escapeHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function formatCommentTime(iso){
+  if(!iso)return '';
+  try{
+    const d=new Date(iso);
+    const now=new Date();
+    const diff=(now-d)/1000;
+    if(diff<60)return 'just now';
+    if(diff<3600)return Math.floor(diff/60)+'m ago';
+    if(diff<86400)return Math.floor(diff/3600)+'h ago';
+    if(diff<86400*7)return Math.floor(diff/86400)+'d ago';
+    // Older — show a readable date
+    return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:d.getFullYear()!==now.getFullYear()?'numeric':undefined});
+  }catch(e){return '';}
+}
+
+function addComment(){
+  if(!selected){toast('Select a node first');return;}
+  const ta=document.getElementById('cm-input');
+  if(!ta)return;
+  const text=(ta.value||'').trim();
+  if(!text){toast('Type a comment first');return;}
+  pushUndo();
+  if(!Array.isArray(selected.comments))selected.comments=[];
+  selected.comments.push({
+    id: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    author: currentUser||'(anonymous)',
+    text,
+    createdAt: new Date().toISOString()
+  });
+  ta.value='';
+  renderCommentList(selected);
+  updList();draw();
+  saveToSupabase();
+  logChange(`Commented on "${(selected.label||'').substring(0,40)}"`);
+  toast('Comment posted');
+}
+
+function deleteComment(nodeId,commentId){
+  const n=nodes.find(x=>x.id===nodeId);
+  if(!n||!Array.isArray(n.comments))return;
+  const idx=n.comments.findIndex(c=>c.id===commentId);
+  if(idx<0)return;
+  const c=n.comments[idx];
+  // Only the author can delete their own comment
+  if(c.author!==(currentUser||'(anonymous)')){
+    toast('Only the author can delete this comment');
+    return;
+  }
+  if(!confirm('Delete this comment?'))return;
+  pushUndo();
+  n.comments.splice(idx,1);
+  renderCommentList(n);
+  updList();draw();
+  saveToSupabase();
+  logChange(`Deleted a comment on "${(n.label||'').substring(0,40)}"`);
+}
+
+function renderCommentList(n){
+  const el=document.getElementById('cm-list');
+  const cnt=document.getElementById('cm-count');
+  if(!el)return;
+  const comments=n?(Array.isArray(n.comments)?n.comments:[]):[];
+  if(cnt)cnt.textContent=comments.length?`${comments.length} comment${comments.length===1?'':'s'}`:'';
+  if(!comments.length){
+    el.innerHTML='<div class="cm-empty">No comments yet. Be the first.</div>';
+    return;
+  }
+  // Newest at the top (matches typical thread UI)
+  const sorted=[...comments].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const me=currentUser||'(anonymous)';
+  el.innerHTML=sorted.map(c=>{
+    const canDel=c.author===me;
+    const delBtn=canDel?`<button class="cm-del-btn" onclick="deleteComment(${n.id},'${c.id}')" title="Delete your comment">✕ delete</button>`:'';
+    return `<div class="cm-item">
+      <div class="cm-item-hdr">
+        <span class="cm-item-author">${escapeHtml(c.author)}</span>
+        <span class="cm-item-time" title="${escapeHtml(c.createdAt)}">${escapeHtml(formatCommentTime(c.createdAt))}</span>
+      </div>
+      <div class="cm-item-text">${escapeHtml(c.text)}</div>
+      ${canDel?`<div class="cm-item-actions">${delBtn}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -2814,6 +3265,15 @@ function updOpenItems(){
     }
   });
 
+  // TBD: manual Needs Work flags. These are the user-driven follow-up items —
+  // anything the team has explicitly marked for review goes into the punch list.
+  nodes.filter(n=>n.needsWork).forEach(n=>{
+    const typeLbl={hazard:'Hazard',situation:'Hazardous Situation',harm:'Harm',control:'Risk Control'}[n.type]||n.type;
+    const note=(n.needsWorkNote||'').trim();
+    const what=note?`⚑ ${typeLbl} flagged: ${note}`:`⚑ ${typeLbl} flagged as Needs Work`;
+    tbd.push({w:what,x:(n.label||'').substring(0,60)});
+  });
+
   // Watch: harms reached from 3+ different situations (convergent — high priority)
   nodes.filter(n=>n.type==='harm').forEach(h=>{
     const paths=edges.filter(e=>e.to===h.id&&nodes.find(n=>n.id===e.from)?.type==='situation').length;
@@ -2862,7 +3322,7 @@ function updList(){
   const g={hazard:[],situation:[],harm:[],control:[]};
   nodes.forEach(n=>{
     if(!isVisible(n))return;
-    if(sq&&!n.label.toLowerCase().includes(sq)&&!(n.notes||'').toLowerCase().includes(sq))return;
+    if(sq&&!nodeMatchesSearch(n,sq))return;
     g[n.type]&&g[n.type].push(n);
   });
   const order=[{k:'hazard',l:'Hazards'},{k:'situation',l:'Hazardous Situations'},{k:'harm',l:'Harms'},{k:'control',l:'Risk Controls'}];
@@ -2883,10 +3343,15 @@ function updList(){
       const outCount=edges.filter(e=>e.from===n.id).length;
       const inCount=edges.filter(e=>e.to===n.id).length;
       const connStr=(inCount||outCount)?`<span class="ncnt">${inCount?'↓'+inCount:''} ${outCount?'→'+outCount:''}</span>`:'';
+      // Needs Work chip (shows ⚑ + truncated note tooltip)
+      const nwChip=n.needsWork?`<span title="${(n.needsWorkNote||'Flagged as Needs Work').replace(/"/g,'&quot;')}" style="font-size:9.5px;color:#dc2626;background:#fef2f2;border:1px solid rgba(220,38,38,.35);border-radius:3px;padding:1px 5px;font-family:'IBM Plex Mono',monospace;font-weight:600">⚑ NW</span>`:'';
+      // Comments chip
+      const cmCount=Array.isArray(n.comments)?n.comments.length:0;
+      const cmChip=cmCount?`<span title="${cmCount} comment${cmCount===1?'':'s'}" style="font-size:9.5px;color:var(--accent);background:#eff6ff;border:1px solid rgba(37,99,235,.35);border-radius:3px;padding:1px 5px;font-family:'IBM Plex Mono',monospace;font-weight:600">💬 ${cmCount}</span>`:'';
       html+=`<div class="ncard${sel}" onclick="selectFromList(${n.id})">
         <div class="ncard-text">${hlText(n.label,searchQuery)}</div>
         ${n.notes?`<div class="ncard-sub">${hlText(n.notes.substring(0,50),searchQuery)}${n.notes.length>50?'…':''}</div>`:''}
-        <div class="ncard-meta">${zp}${connStr}</div>
+        <div class="ncard-meta">${zp}${nwChip}${cmChip}${connStr}</div>
       </div>`;
     });
   });
@@ -2904,6 +3369,7 @@ function updAll(){
   updFaultTree();
   updMatrix();
   updOpenItems();
+  updateNeedsWorkBtn();
   if(activeView==='matrix')renderMatrix();
 }
 
