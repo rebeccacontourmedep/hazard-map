@@ -627,7 +627,10 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
           </div>
         </div>
 
-        <button class="btn active" onclick="saveEdit()">Save  (Enter)</button>
+        <div style="display:flex;gap:6px;margin-top:7px">
+          <button class="btn active" onclick="saveEdit()" style="flex:1;margin-top:0">Save  (Enter)</button>
+          <button class="btn" onclick="deleteSelectedFromPanel()" style="flex:0 0 auto;margin-top:0;color:#dc2626;border-color:rgba(220,38,38,.4);background:#fef2f2" title="Delete this item (cascades to its connections)">Delete</button>
+        </div>
       </div>
 
       <!-- Edge edit panel (Situation→Harm) -->
@@ -1579,7 +1582,11 @@ function addNodeFromMatrix(t){
   };
   nodes.push(n);
   if(typeof measure==='function')measure(n);
-  if(parent)edges.push({from:parent.id,to:n.id,occurrence:null,controls:[]});
+  includeInFocusIfActive(n.id);
+  if(parent){
+    edges.push({from:parent.id,to:n.id,occurrence:null,controls:[]});
+    includeInFocusIfActive(parent.id);
+  }
   scheduleSave('Added '+t+' from matrix');
   updAll();
   selectNode(n);
@@ -1818,7 +1825,19 @@ function addNode(wx,wy,type){
   pushUndo();
   const L={hazard:'New Hazard',situation:'New Hazardous Situation',harm:'New Harm',control:'New Risk Control'};
   const n={id:nextId++,type,label:L[type],x:wx,y:wy,w:190,h:60,notes:'',severity:null,sequence:'',verification:'',evidence:[]};
-  nodes.push(n);selectNode(n);updAll();draw();
+  nodes.push(n);
+  // If currently in focus mode, include the new node so the user can see and
+  // edit what they just created (otherwise the focus filter hides it).
+  includeInFocusIfActive(n.id);
+  selectNode(n);updAll();draw();
+}
+
+// When the user creates a new node while focus mode is active, the new node's
+// id isn't in focusSet yet, so isVisible() filters it out — the user clicks Add
+// and nothing appears on the canvas or in the side list. Adding the new id to
+// the active focus set fixes that. No-op when focus mode is off.
+function includeInFocusIfActive(id){
+  if(focusSet && id!=null) focusSet.add(id);
 }
 
 // Toggle the body's "editing" class so CSS can hide the tab content + search bar
@@ -2087,6 +2106,9 @@ function linkExistingChild(parentId, childType, childId){
   if(!edges.some(e=>e.from===parentId&&e.to===childId)){
     edges.push({from:parentId,to:childId,occurrence:null,controls:[]});
   }
+  // Bring both ends into focus so the new link is visible while we're still in focus mode
+  includeInFocusIfActive(parentId);
+  includeInFocusIfActive(childId);
   scheduleSave('Linked '+childType);
   updAll();draw();
   // Re-render the edit panel for the parent (which we're still editing)
@@ -2101,6 +2123,8 @@ function linkExistingParent(childId, parentType, parentId){
   if(!edges.some(e=>e.from===parentId&&e.to===childId)){
     edges.push({from:parentId,to:childId,occurrence:null,controls:[]});
   }
+  includeInFocusIfActive(parentId);
+  includeInFocusIfActive(childId);
   scheduleSave('Linked '+parentType);
   updAll();draw();
   const c=nodes.find(n=>n.id===childId);
@@ -2131,6 +2155,7 @@ function addLinkedChild(parentId, childType){
   };
   nodes.push(n);
   if(typeof measure==='function')measure(n);
+  includeInFocusIfActive(n.id);
   edges.push({from:parentId,to:id,occurrence:null,controls:[]});
   scheduleSave('Added new '+childType);
   updAll();draw();
@@ -2156,6 +2181,7 @@ function addLinkedParent(childId, parentType){
   };
   nodes.push(n);
   if(typeof measure==='function')measure(n);
+  includeInFocusIfActive(n.id);
   edges.push({from:id,to:childId,occurrence:null,controls:[]});
   scheduleSave('Added new '+parentType);
   updAll();draw();
@@ -2480,8 +2506,36 @@ function deleteSelected(){
       }
     });
   }
+  // If we were in focus mode, drop the deleted id from the focus set
+  if(focusSet) focusSet.delete(delId);
   selected=null;document.getElementById('edit-panel').style.display='none';
   updAll();draw();
+}
+
+// Delete the selected node from inside the edit panel — same as deleteSelected()
+// but with an explicit cascade-preview confirmation, because once you're editing
+// a node it's easy to misclick a hot button without a safety net.
+function deleteSelectedFromPanel(){
+  if(!selected)return;
+  const n=selected;
+  const inboundEdges=edges.filter(e=>e.to===n.id).length;
+  const outboundEdges=edges.filter(e=>e.from===n.id).length;
+  // Schema-v2: a control is referenced by edge.controls[], not edges directly.
+  const controlAttachments=n.type==='control'
+    ? edges.reduce((acc,e)=>acc+((e.controls||[]).filter(a=>a.controlId===n.id).length),0)
+    : 0;
+  const typeLbl={hazard:'Hazard',situation:'Hazardous Situation',harm:'Harm',control:'Risk Control'}[n.type]||n.type;
+  const cascadeLines=[];
+  if(inboundEdges) cascadeLines.push(`• ${inboundEdges} inbound connection${inboundEdges===1?'':'s'}`);
+  if(outboundEdges) cascadeLines.push(`• ${outboundEdges} outbound connection${outboundEdges===1?'':'s'}`);
+  if(controlAttachments) cascadeLines.push(`• Detach from ${controlAttachments} Situation→Harm edge${controlAttachments===1?'':'s'}`);
+  const cascadeMsg=cascadeLines.length
+    ? `\n\nThis will also remove:\n${cascadeLines.join('\n')}`
+    : '';
+  const msg=`Delete this ${typeLbl}?\n\n"${(n.label||'').substring(0,80)}"${cascadeMsg}\n\nUse Ctrl+Z afterwards if you change your mind.`;
+  if(!confirm(msg))return;
+  deleteSelected();
+  toast(`${typeLbl} deleted`);
 }
 
 function selectFromId(id){const n=nodes.find(n=>n.id===id);if(n){selectNode(n);pan.x=canvas.offsetWidth/2-n.x*zoom;pan.y=canvas.offsetHeight/2-n.y*zoom;draw();}}
@@ -2595,6 +2649,7 @@ function attachControlToEdge(){
   pushUndo();
   if(!Array.isArray(activePopupEdge.controls))activePopupEdge.controls=[];
   activePopupEdge.controls.push({controlId:id,verification:''});
+  includeInFocusIfActive(id);
   refreshAttachedControls(activePopupEdge);
   refreshControlPicker(activePopupEdge);
   updAll();draw();toast('Control attached');
@@ -2619,6 +2674,7 @@ function createAndAttachNewControl(){
   };
   nodes.push(ctrl);
   if(typeof measure==='function')measure(ctrl);
+  includeInFocusIfActive(ctrl.id);
   if(!Array.isArray(activePopupEdge.controls))activePopupEdge.controls=[];
   activePopupEdge.controls.push({controlId:id,verification:''});
   refreshAttachedControls(activePopupEdge);
