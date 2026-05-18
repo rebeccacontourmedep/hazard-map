@@ -1061,39 +1061,84 @@ function focusSelected(){
   focusOnNode(selected);
 }
 
-// Compute the full upstream + downstream connected chain for a given node.
-// Bidirectional BFS so focusing on a Harm surfaces its Hazard/Situation parents
-// AND its downstream Controls. In schema v2, Risk Controls are attached to the
-// Situation→Harm edge's `controls[]` rather than connected via a harm→control
-// edge — so we handle both directions of that attachment explicitly.
+// Compute the connected chain to show when focusing on a node.
+// Walks deeply in the node's "natural" direction (Hazard→down, Harm→up, etc.)
+// but only takes a SINGLE step in the opposite direction. This prevents sideways
+// sprawl: focusing on a Harm reaches back to its Situations and Hazards without
+// then bouncing forward through those Situations to every other Harm they cause.
+//
+// Schema v2: Controls attach via edge.controls[] (no harm→control edges), so
+// they're surfaced explicitly based on the inbound Situation→Harm edges in scope.
 function computeFocusIds(startNode){
   const ids=new Set([startNode.id]);
 
-  // If starting on a Control, seed the frontier with every Situation→Harm edge
-  // that references this control (its "upstream" in schema v2).
-  if(startNode.type==='control'){
-    edges.forEach(e=>{
-      if(Array.isArray(e.controls)&&e.controls.some(a=>a&&a.controlId===startNode.id)){
-        ids.add(e.from); ids.add(e.to);
-      }
-    });
-  }
-
-  let frontier=[...ids];
-  for(let depth=0;depth<20;depth++){
-    const next=[];
-    frontier.forEach(id=>{
-      edges.forEach(e=>{
-        if(e.from===id&&!ids.has(e.to)){ids.add(e.to);next.push(e.to);}
-        if(e.to===id&&!ids.has(e.from)){ids.add(e.from);next.push(e.from);}
+  // Walk forward (e.from in scope → add e.to) for `maxDepth` levels.
+  const walkDown=(seedIds, maxDepth)=>{
+    let frontier=[...seedIds];
+    for(let depth=0;depth<maxDepth;depth++){
+      const next=[];
+      frontier.forEach(id=>{
+        edges.forEach(e=>{
+          if(e.from===id&&!ids.has(e.to)){ids.add(e.to);next.push(e.to);}
+        });
       });
-    });
-    if(!next.length)break;
-    frontier=next;
+      if(!next.length)break;
+      frontier=next;
+    }
+  };
+  // Walk backward (e.to in scope → add e.from) for `maxDepth` levels.
+  const walkUp=(seedIds, maxDepth)=>{
+    let frontier=[...seedIds];
+    for(let depth=0;depth<maxDepth;depth++){
+      const next=[];
+      frontier.forEach(id=>{
+        edges.forEach(e=>{
+          if(e.to===id&&!ids.has(e.from)){ids.add(e.from);next.push(e.from);}
+        });
+      });
+      if(!next.length)break;
+      frontier=next;
+    }
+  };
+
+  const DEEP=20;
+  const SHALLOW=1;
+
+  switch(startNode.type){
+    case 'hazard':
+      // Pure downstream: situations → harms (+ their attached controls below)
+      walkDown([startNode.id], DEEP);
+      break;
+    case 'situation':
+      // Downstream deeply (harms + controls). Upstream just one step to its hazards.
+      walkDown([startNode.id], DEEP);
+      walkUp([startNode.id], SHALLOW);
+      break;
+    case 'harm':
+      // Upstream deeply (situations + hazards). Downstream is just the controls
+      // attached to its inbound Situation→Harm edges (handled below).
+      walkUp([startNode.id], DEEP);
+      break;
+    case 'control': {
+      // Seed with the Situation/Harm endpoints of every edge that uses this control.
+      const seeds=new Set();
+      edges.forEach(e=>{
+        if(Array.isArray(e.controls)&&e.controls.some(a=>a&&a.controlId===startNode.id)){
+          ids.add(e.from); ids.add(e.to);
+          seeds.add(e.from); seeds.add(e.to);
+        }
+      });
+      // Walk upstream from those situations to their hazards.
+      walkUp([...seeds], DEEP);
+      break;
+    }
+    default:
+      walkDown([startNode.id], DEEP);
+      walkUp([startNode.id], DEEP);
   }
 
   // Pull in edge-attached controls for any Situation→Harm edge whose endpoints
-  // are both in scope (covers the schema-v2 controls[] downstream attachment).
+  // are both in scope (schema-v2 controls[] attachment).
   edges.forEach(e=>{
     if(!Array.isArray(e.controls)||!e.controls.length)return;
     if(ids.has(e.from)&&ids.has(e.to)){
