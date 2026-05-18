@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3551,30 +3552,74 @@ function doBackup(){
   toast('Backup saved');
 }
 function triggerRestore(){document.getElementById('restore-file').click();}
-function doRestore(ev){
-  const file=ev.target.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{try{
-    const data=JSON.parse(e.target.result);
-    if(data.nodes&&data.edges){
-      pushUndo();
-      // Migrate schema v1 → v2 if needed.
-      const migrated=migrateBackupV1toV2(data.nodes,data.edges);
-      nodes=migrated.nodes;edges=migrated.edges;
-      nextId=Math.max(...nodes.map(n=>n.id),0)+1;
-      selected=null;selEdge=null;clearFocus();closeEdgePopup();
-      document.getElementById('edit-panel').style.display='none';
-      updAll();fitScreen();
-      if(migrated.didMigrate){
-        toast('Restored & migrated v1 → v2 ('+migrated.notes+')');
-      } else {
-        toast('Restored '+nodes.length+' nodes');
-      }
-    }else{
-      alert('Not a valid backup file (missing nodes/edges).');
+// Restore is async and AWAITS saveToSupabase before returning. This avoids the
+// historical bug where doRestore relied on pushUndo() → scheduleSave()'s 1.5s
+// debounced timer, which a tab-close/refresh would silently cancel — wiping
+// the restored data on the next load (Supabase still held the old row).
+//
+// Implementation notes:
+//   - The file input's onchange handler is fire-and-forget; we don't need to
+//     return the promise to it, but we MUST await internally so the save lands.
+//   - We also temporarily clear lastSavedHash so saveToSupabase can't no-op the
+//     write under the "hash matches" guard (it would never match a 176-node
+//     payload vs an 83-node baseline, but cheap insurance against future bugs).
+//   - We pin isRemoteUpdate=false during the save so a concurrent realtime
+//     event from a teammate can't suppress it.
+//   - A beforeunload guard is wired up so closing the tab DURING the save
+//     prompts the user, instead of silently dropping the write.
+async function doRestore(ev){
+  const file=ev.target.files[0];if(!file){ev.target.value='';return;}
+  // Read the file into memory before touching state
+  let rawText;
+  try{
+    rawText=await file.text();
+  }catch(err){alert('Could not read file: '+err.message);ev.target.value='';return;}
+  let data;
+  try{
+    data=JSON.parse(rawText);
+  }catch(err){alert('Invalid JSON: '+err.message);ev.target.value='';return;}
+  if(!data.nodes||!data.edges){
+    alert('Not a valid backup file (missing nodes/edges).');
+    ev.target.value='';return;
+  }
+  // Apply locally
+  pushUndo();
+  const migrated=migrateBackupV1toV2(data.nodes,data.edges);
+  nodes=migrated.nodes;edges=migrated.edges;
+  nextId=Math.max(...nodes.map(n=>n.id),0)+1;
+  selected=null;selEdge=null;clearFocus();closeEdgePopup();
+  document.getElementById('edit-panel').style.display='none';
+  updAll();fitScreen();
+  ev.target.value='';
+  // Cancel any debounced save that pushUndo just queued — we're about to do it
+  // synchronously, awaited, right now.
+  if(typeof saveTimer!=='undefined'&&saveTimer){clearTimeout(saveTimer);saveTimer=null;}
+  // Surface progress to the user and block tab-close while saving
+  setSyncBadge('saving','Restoring…');
+  const beforeUnloadGuard=ev2=>{ev2.preventDefault();ev2.returnValue='Restore in progress — save still in flight. Leave anyway?';return ev2.returnValue;};
+  window.addEventListener('beforeunload',beforeUnloadGuard);
+  // Force the save through even if the hash machinery would otherwise no-op it
+  lastSavedHash='';
+  const restoreDesc=migrated.didMigrate
+    ? `Restored from backup (v1 → v2 migration: ${migrated.notes})`
+    : `Restored from backup (${nodes.length} nodes, ${edges.length} edges)`;
+  try{
+    await saveToSupabase(restoreDesc);
+    if(migrated.didMigrate){
+      toast('Restored & migrated v1 → v2 ('+migrated.notes+') — saved');
+    } else {
+      toast('Restored '+nodes.length+' nodes — saved');
     }
-  }catch(err){alert('Invalid file: '+err.message);}};
-  reader.readAsText(file);ev.target.value='';
+  }catch(err){
+    setSyncBadge('err','Restore save failed');
+    alert('Restore loaded locally but the save to Supabase failed:\n\n'+
+          (err&&err.message?err.message:err)+'\n\n'+
+          'Your local view shows the restored data, but refreshing will revert it. '+
+          'Check your network and click the Backup button to export a JSON copy before refreshing.');
+    console.error('Restore save error:',err);
+  }finally{
+    window.removeEventListener('beforeunload',beforeUnloadGuard);
+  }
 }
 
 // Migrate a backup from schema v1 (controls connected via Harm→Control edges; post-control
