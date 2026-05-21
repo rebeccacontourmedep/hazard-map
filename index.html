@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2358,7 +2359,7 @@ function saveEvEntry(){
   hideEvForm();
   renderEvList(selected);
   updList();draw();
-  saveToSupabase();
+  flushSave('Added evidence entry');
   toast('Evidence entry saved');
 }
 
@@ -2369,7 +2370,7 @@ function deleteEvEntry(nodeId,idx){
   n.evidence.splice(idx,1);
   renderEvList(n);
   updList();draw();
-  saveToSupabase();
+  flushSave('Deleted evidence entry');
 }
 
 function renderEvList(n){
@@ -2438,8 +2439,7 @@ function addComment(){
   ta.value='';
   renderCommentList(selected);
   updList();draw();
-  saveToSupabase();
-  logChange(`Commented on "${(selected.label||'').substring(0,40)}"`);
+  flushSave(`Commented on "${(selected.label||'').substring(0,40)}"`);
   toast('Comment posted');
 }
 
@@ -2459,8 +2459,7 @@ function deleteComment(nodeId,commentId){
   n.comments.splice(idx,1);
   renderCommentList(n);
   updList();draw();
-  saveToSupabase();
-  logChange(`Deleted a comment on "${(n.label||'').substring(0,40)}"`);
+  flushSave(`Deleted a comment on "${(n.label||'').substring(0,40)}"`);
 }
 
 function renderCommentList(n){
@@ -2491,10 +2490,12 @@ function renderCommentList(n){
 }
 
 function deleteSelected(){
-  if(selEdge){pushUndo();edges=edges.filter(e=>e!==selEdge);selEdge=null;closeEdgePopup();updAll();draw();return;}
+  if(selEdge){pushUndo();edges=edges.filter(e=>e!==selEdge);selEdge=null;closeEdgePopup();updAll();draw();flushSave('Deleted edge');return;}
   if(!selected)return;
   pushUndo();
   const delId=selected.id;
+  const delLabel=(selected.label||'').substring(0,40);
+  const delType=selected.type;
   const wasControl=selected.type==='control';
   nodes=nodes.filter(n=>n!==selected);
   edges=edges.filter(e=>e.from!==delId&&e.to!==delId);
@@ -2510,6 +2511,7 @@ function deleteSelected(){
   if(focusSet) focusSet.delete(delId);
   selected=null;document.getElementById('edit-panel').style.display='none';
   updAll();draw();
+  flushSave(`Deleted ${delType}: ${delLabel||'(unnamed)'}`);
 }
 
 // Delete the selected node from inside the edit panel — same as deleteSelected()
@@ -2720,6 +2722,7 @@ function deleteSelectedEdge(){
   edges=edges.filter(x=>x!==e);
   closeEdgePopup();
   updAll();draw();toast('Edge deleted');
+  flushSave('Deleted edge');
 }
 function closeEdgePopup(){
   document.getElementById('edge-edit-panel').style.display='none';
@@ -5310,13 +5313,37 @@ async function loadFromSupabase(){
       const migrated=migrateBackupV1toV2(data.data.nodes,data.data.edges);
       nodes=migrated.nodes;edges=migrated.edges;
       nextId=Math.max(...nodes.map(n=>n.id),0)+1;
-      lastSavedHash=JSON.stringify({nodes,edges});
       updAll();setTimeout(fitScreen,80);
       if(migrated.didMigrate){
-        setSyncBadge('saved','Loaded & migrated v1 → v2');
-        // Persist the migrated form so subsequent loads are pure v2
-        if(sb)saveToSupabase('Schema v1 → v2 migration');
+        // The migration changed the in-memory data, but the DATABASE still holds the
+        // pre-migration v1 row. lastSavedHash must reflect what is actually in the DB
+        // — NOT the migrated form — otherwise saveToSupabase's hash-match guard sees
+        // a match and silently skips the write. That was the root cause of the
+        // migration never persisting: it re-ran on every single load, and any
+        // refresh/tab-close lost migrated-state edits.
+        lastSavedHash=JSON.stringify({nodes:data.data.nodes,edges:data.data.edges});
+        setSyncBadge('saving','Migrating v1 → v2…');
+        // Persist the migrated form so subsequent loads are pure v2. AWAIT it and
+        // check the result — a silent skip here is exactly the failure we are fixing.
+        if(sb){
+          try{
+            const ok=await saveToSupabase('Schema v1 → v2 migration');
+            if(ok){
+              setSyncBadge('saved','Loaded & migrated v1 → v2');
+            }else{
+              setSyncBadge('err','Migration NOT saved');
+              console.error('v1→v2 migration save was suppressed — DB still holds v1 data');
+            }
+          }catch(err){
+            setSyncBadge('err','Migration save failed');
+            console.error('v1→v2 migration save failed:',err);
+          }
+        }else{
+          setSyncBadge('saved','Loaded & migrated v1 → v2 (offline — not saved)');
+        }
       } else {
+        // No migration — in-memory matches the DB exactly.
+        lastSavedHash=JSON.stringify({nodes,edges});
         setSyncBadge('saved','Loaded');
       }
     }else{setTimeout(loadSample,120);setSyncBadge('saved','New diagram');}
@@ -5423,6 +5450,41 @@ function scheduleSave(){
   saveTimer=setTimeout(()=>saveToSupabase(desc),1500);
 }
 let _pendingChangeDesc = '';
+
+// Immediate, AWAITED save for destructive actions (deletes). The debounced
+// scheduleSave() leaves a 1.5s window in which a tab-close/refresh silently
+// cancels the timer — the same failure class as the old doRestore bug. For
+// deletions that window means the deletion is lost on the next load, so those
+// callers flush the write synchronously instead.
+//   - cancels any pending debounce so it can't fire a duplicate later
+//   - awaits the write and surfaces failure loudly (delete looks done on screen
+//     but a refresh would bring the node back, so the user must know)
+//   - guards tab-close while the write is in flight
+async function flushSave(desc){
+  if(!sb) return false;            // not logged in — scheduleSave's guard applies
+  if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
+  const guard=ev=>{ev.preventDefault();ev.returnValue='Save in progress — leave anyway?';return ev.returnValue;};
+  window.addEventListener('beforeunload',guard);
+  try{
+    const ok=await saveToSupabase(desc);
+    if(!ok){
+      setSyncBadge('err','Change NOT saved');
+      alert('The change shows on your screen but the cloud save was skipped or '+
+            'suppressed.\n\nA page refresh would revert it. Click Backup to keep a '+
+            'JSON copy, then check your connection.');
+    }
+    return ok;
+  }catch(err){
+    setSyncBadge('err','Save failed');
+    alert('The change shows on your screen but the save to the cloud failed:\n\n'+
+          (err&&err.message?err.message:err)+'\n\nA refresh would revert it. '+
+          'Click Backup to export a JSON copy before refreshing.');
+    console.error('flushSave error:',err);
+    return false;
+  }finally{
+    window.removeEventListener('beforeunload',guard);
+  }
+}
 
 const _origPushUndo=pushUndo;
 pushUndo=function(desc){
