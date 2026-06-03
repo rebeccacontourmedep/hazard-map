@@ -1,6 +1,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -88,6 +89,9 @@ body.view-matrix .minimap{display:none;}
 .matrix-row-filter .mrf-select.active{border-color:var(--accent);background:#eff6ff;font-weight:600;}
 .matrix-row-filter .mrf-clear{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 9px;border-radius:3px;border:1px solid rgba(220,38,38,.4);background:#fef2f2;color:#dc2626;cursor:pointer;}
 .matrix-row-filter .mrf-clear:hover{background:#fee2e2;}
+.matrix-row-filter .mrf-nw{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 9px;border-radius:3px;border:1px solid rgba(220,38,38,.4);background:var(--surface);color:#dc2626;cursor:pointer;}
+.matrix-row-filter .mrf-nw:hover{background:#fef2f2;}
+.matrix-row-filter .mrf-nw.active{background:#fef2f2;border-color:#dc2626;font-weight:700;}
 .matrix-row-filter .mrf-count{font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-left:auto;}
 .matrix-col-filter .mcfbtn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;border:1px solid var(--border2);background:var(--surface);color:var(--text3);cursor:pointer;transition:all .12s;}
 .matrix-col-filter .mcfbtn:hover{color:var(--text2);}
@@ -99,6 +103,12 @@ body.view-matrix .minimap{display:none;}
 .matrix-table thead th{position:sticky;top:0;z-index:5;background:#d1d9e7;color:var(--text);font-size:10px;font-weight:700;letter-spacing:.04em;padding:6px 8px;text-align:left;border:1px solid var(--border2);font-family:'IBM Plex Mono',monospace;text-transform:uppercase;white-space:normal;line-height:1.2;}
 .matrix-table thead .col-group{background:#b8c5dc;font-size:10px;text-align:center;}
 .matrix-table td{padding:5px 8px;border:1px solid var(--border);vertical-align:top;background:var(--surface);max-width:280px;overflow-wrap:break-word;cursor:pointer;transition:background .08s;}
+/* Needs Work row indicators — placed before :hover so hover still wins on hover.
+   Row tint beats the per-column tints by specificity; the inset box-shadow draws a
+   red left bar without disturbing the cell border/table layout. */
+.matrix-table tr.matrix-needswork td{background:rgba(220,38,38,.055);}
+.matrix-table tr.matrix-needswork td:first-child{box-shadow:inset 3px 0 0 #dc2626;}
+.matrix-table .nw-flag{display:inline-block;font-size:8.5px;background:#fef2f2;color:#dc2626;border:1px solid rgba(220,38,38,.35);padding:1px 4px;border-radius:2px;font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;margin-left:4px;vertical-align:middle;}
 .matrix-table tr:hover td{background:#f0f4ff;}
 .matrix-table td.col-id      {font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text2);text-align:center;white-space:nowrap;background:var(--surface2);}
 .matrix-table td.col-hazard  {background:rgba(192,57,43,.07);color:var(--hazard);font-weight:500;}
@@ -431,8 +441,6 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
   <input type="file" id="restore-file" accept=".json" style="display:none" onchange="doRestore(event)">
   <button class="btn" onclick="openExportModal()" title="Export to CM-000036-FM Hazard Analysis Template">Export</button>
   <div class="sep"></div>
-  <button class="btn" onclick="loadSample()" title="Load Atlas 360 starter data">Example</button>
-  <div class="sep"></div>
   <span id="sync-badge" title="Cloud sync status">Connecting…</span>
 </div>
 
@@ -482,6 +490,7 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
           <option value="">All harms</option>
         </select>
       </label>
+      <button class="mrf-nw" id="matrix-filter-nw" onclick="toggleMatrixNeedsWork()" title="Show only rows whose chain (hazard / situation / harm / control) has a Needs Work flag">⚑ Needs Work only</button>
       <button class="mrf-clear" id="matrix-filter-clear" onclick="clearMatrixRowFilters()" style="display:none">Clear filters</button>
       <span class="mrf-count" id="matrix-filter-count"></span>
     </div>
@@ -811,6 +820,10 @@ let matrixColumns={
 // logic stays correct.
 let matrixFilterHazard='';
 let matrixFilterHarm='';
+// "Needs Work only" matrix filter: when true, only situations whose chain
+// (hazard / situation / linked harms / attached controls) carries a Needs Work
+// flag are shown. Visual indicators (row tint + per-cell ⚑) render regardless.
+let matrixFilterNeedsWork=false;
 
 // ── Swimlane + focus layout state (declared early to avoid TDZ errors) ──
 let swimlaneMode = false;
@@ -2312,6 +2325,8 @@ function onNeedsWorkChange(){
   updateNeedsWorkBtn();
   updList();
   draw();
+  // In Matrix view, re-render so row tint / ⚑ flags / toggle count update live.
+  if(activeView==='matrix')renderMatrix();
   // Persist + audit
   scheduleSave&&scheduleSave();
   logChange(`${on?'Flagged':'Unflagged'} "${(selected.label||'').substring(0,40)}" as Needs Work`);
@@ -3055,7 +3070,15 @@ function renderMatrixRowFilter(){
   harmSel.classList.toggle('active',!!matrixFilterHarm);
 
   const clearBtn=document.getElementById('matrix-filter-clear');
-  if(clearBtn) clearBtn.style.display=(matrixFilterHazard||matrixFilterHarm)?'':'none';
+  if(clearBtn) clearBtn.style.display=(matrixFilterHazard||matrixFilterHarm||matrixFilterNeedsWork)?'':'none';
+
+  // Reflect the Needs Work toggle's active state + count of flagged nodes.
+  const nwBtn=document.getElementById('matrix-filter-nw');
+  if(nwBtn){
+    nwBtn.classList.toggle('active',matrixFilterNeedsWork);
+    const flagged=nodes.filter(n=>n.needsWork).length;
+    nwBtn.textContent=flagged?`⚑ Needs Work only (${flagged})`:'⚑ Needs Work only';
+  }
 }
 
 // Fired by either dropdown's onchange — read the values and re-render the table.
@@ -3067,9 +3090,16 @@ function onMatrixRowFilterChange(){
   renderMatrix();
 }
 
+// Toggle the "Needs Work only" row filter and re-render.
+function toggleMatrixNeedsWork(){
+  matrixFilterNeedsWork=!matrixFilterNeedsWork;
+  renderMatrix();
+}
+
 function clearMatrixRowFilters(){
   matrixFilterHazard='';
   matrixFilterHarm='';
+  matrixFilterNeedsWork=false;
   renderMatrix();
 }
 
@@ -3088,6 +3118,22 @@ function updateMatrixFilterCount(sitCount,filterActive){
     if(s){const p=JSON.parse(s);if(p&&typeof p==='object')Object.assign(matrixColumns,p);}
   }catch(e){}
 })();
+
+// True if any entity in this situation's (already hazard/harm-filtered) chain carries
+// a Needs Work flag: the parent hazard, the situation itself, any linked harm, or any
+// control attached to those Situation→Harm edges. Used by the "Needs Work only" filter.
+function matrixChainNeedsWork(hz,sit,harmEdges){
+  if(hz&&hz.needsWork)return true;
+  if(sit&&sit.needsWork)return true;
+  for(const he of (harmEdges||[])){
+    if(he.harm&&he.harm.needsWork)return true;
+    for(const att of ((he.edge&&he.edge.controls)||[])){
+      const c=nodes.find(n=>n.id===att.controlId);
+      if(c&&c.needsWork)return true;
+    }
+  }
+  return false;
+}
 
 // Build the matrix row data: one row per (situation→harm edge × attached control).
 // Schema-agnostic ordering: situations are listed in creation order (by .id), regardless
@@ -3122,6 +3168,9 @@ function buildMatrixRows(){
     // With a harm filter active, a situation with no matching harm-edge is dropped
     // entirely (rather than rendering a blank "no harm linked" row).
     if(fHarm!==null && !harmEdges.length) continue;
+    // Needs Work filter: skip situations whose chain has no Needs Work flag. Runs on
+    // the already hazard/harm-filtered set so it composes with the dropdown filters.
+    if(matrixFilterNeedsWork && !matrixChainNeedsWork(hz,sit,harmEdges)) continue;
     if(!harmEdges.length){
       rows.push({
         id:idStr, hazard:hz, sit, edge:null, harm:null, attachment:null, control:null,
@@ -3187,6 +3236,13 @@ function zonePill(z){
   return `<span class="zone-pill zone-z${z}">Z${z}</span>`;
 }
 
+// In-cell Needs Work flag — a small ⚑ badge with the note as tooltip, or '' if unflagged.
+function matrixNwFlag(node){
+  if(!node||!node.needsWork)return '';
+  const note=(node.needsWorkNote&&node.needsWorkNote.trim())?node.needsWorkNote:'Flagged as Needs Work';
+  return ` <span class="nw-flag" title="${escapeMatrix(note)}">⚑</span>`;
+}
+
 function renderMatrix(){
   const thead=document.getElementById('matrix-thead');
   const tbody=document.getElementById('matrix-tbody');
@@ -3235,7 +3291,7 @@ function renderMatrix(){
 
   // Build the body
   const rows=buildMatrixRows();
-  const filterActive=!!(matrixFilterHazard||matrixFilterHarm);
+  const filterActive=!!(matrixFilterHazard||matrixFilterHarm||matrixFilterNeedsWork);
   if(!rows.length){
     const cs=Object.values(mc).filter(Boolean).length+initialCols+residualCols
       -(mc.initial?1:0)-(mc.residual?1:0);
@@ -3258,18 +3314,19 @@ function renderMatrix(){
     const isFirstSit=r.isFirstSitRow;
     const isFirstHarm=r.isFirstHarmRow;
     const groupEnd=r._sitEnd?' group-end':'';
-    html+=`<tr class="ctrl-row${groupEnd}" data-row="${i}">`;
+    const rowNW=(r.hazard&&r.hazard.needsWork)||(r.sit&&r.sit.needsWork)||(r.harm&&r.harm.needsWork)||(r.control&&r.control.needsWork);
+    html+=`<tr class="ctrl-row${groupEnd}${rowNW?' matrix-needswork':''}" data-row="${i}">`;
     if(mc.id)     html+=`<td class="col-id" onclick="matrixClick(${i},'id')">${isFirstSit?r.id:''}</td>`;
-    if(mc.hazard) html+=`<td class="col-hazard" onclick="matrixClick(${i},'hazard')">${isFirstSit?(r.hazard?escapeMatrix(r.hazard.label):'<span class="matrix-empty">—</span>'):''}</td>`;
+    if(mc.hazard) html+=`<td class="col-hazard" onclick="matrixClick(${i},'hazard')">${isFirstSit?(r.hazard?escapeMatrix(r.hazard.label)+matrixNwFlag(r.hazard):'<span class="matrix-empty">—</span>'):''}</td>`;
     if(mc.seq){
       const seq=r.sit&&r.sit.sequence?escapeMatrix(r.sit.sequence).replace(/\n/g,'<br>'):'';
       html+=`<td class="col-seq" onclick="matrixClick(${i},'sit')">${isFirstSit?seq:''}</td>`;
     }
-    if(mc.sit)   html+=`<td class="col-sit" onclick="matrixClick(${i},'sit')">${isFirstSit?escapeMatrix(r.sit.label):''}</td>`;
+    if(mc.sit)   html+=`<td class="col-sit" onclick="matrixClick(${i},'sit')">${isFirstSit?escapeMatrix(r.sit.label)+matrixNwFlag(r.sit):''}</td>`;
     if(mc.harm){
       if(r.harm){
         const sev=r.harm.severity?` <span class="matrix-empty">- ${severityName(r.harm.severity)}</span>`:'';
-        html+=`<td class="col-harm" onclick="matrixClick(${i},'harm')">${isFirstHarm?escapeMatrix(r.harm.label)+sev:''}</td>`;
+        html+=`<td class="col-harm" onclick="matrixClick(${i},'harm')">${isFirstHarm?escapeMatrix(r.harm.label)+sev+matrixNwFlag(r.harm):''}</td>`;
       }else{
         html+=`<td class="col-harm matrix-empty" onclick="matrixClick(${i},'sit')">${isFirstHarm?'(no harm linked)':''}</td>`;
       }
@@ -3285,7 +3342,7 @@ function renderMatrix(){
     if(mc.ctrl){
       if(r.control){
         const review=r.attachment&&r.attachment.migrated?'<span class="review-flag">REVIEW</span>':'';
-        html+=`<td class="col-ctrl" onclick="matrixClick(${i},'control')">${escapeMatrix(r.control.label)}${review}</td>`;
+        html+=`<td class="col-ctrl" onclick="matrixClick(${i},'control')">${escapeMatrix(r.control.label)}${matrixNwFlag(r.control)}${review}</td>`;
       }else{
         html+=`<td class="col-ctrl matrix-empty" onclick="matrixClick(${i},'edge')">${r.edge?'(no controls attached)':''}</td>`;
       }
@@ -4420,686 +4477,6 @@ function migrateBackupV1toV2(rawNodes,rawEdges){
 let toastTimer=null;
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1800);}
 
-// ── Sample ─────────────────────────────────────────────────────────
-// Atlas 360 — 80-electrode basket cardiac mapping catheter — Contour Medical
-// Ref: CM-000023-OP Risk Management SOP; CM-000036-FM Hazard Analysis Template
-// Updated from DOC-XXXX Atlas 360 Traceability Matrix (UN-006 through UN-032)
-function loadSample(){
-  nodes=[];edges=[];nextId=128;undoStack=[];
-  const ns=[
-
-    // ── Hazards ───────────────────────────────────────────────────
-    {id:1,  type:'hazard', label:'Electrical energy',                          x:-530, y:-440},
-    {id:2,  type:'hazard', label:'Kinetic / mechanical energy',                x:-530, y:-145},
-    {id:3,  type:'hazard', label:'Fluid / air ingress hazard',                 x:-530, y: 150},
-    {id:4,  type:'hazard', label:'Biological / chemical energy',               x:-530, y: 445},
-    {id:5,  type:'hazard', label:'Incomplete or incorrect mapping information', x:-530, y: 620},
-
-    // ── Hazardous Situations ──────────────────────────────────────
-    // id:6  Electrical → electric shock (UN-015, IEC 60601-1)
-    {id:6,  type:'situation',
-      label:'Electric shock: moisture ingress via incorrect cleaning procedure',
-      x:-155, y:-590,
-      sequence:'1. Operator uses liquid cleaning agent on handle connector\n2. Moisture enters electrical housing\n3. Device energised during use\n4. Operator contacts energised surface',
-      notes:'UN-015; IEC 60601-1 basic safety; CM-000023-OP §3.2'},
-
-    // id:7  Electrical → thermal/leakage (UN-011, REQ-0061)
-    {id:7,  type:'situation',
-      label:'Thermal injury: leakage current via electrode array during RF ablation',
-      x:-155, y:-440,
-      sequence:'1. Atlas deployed adjacent to active ablation catheter\n2. Induced current exceeds safe leakage threshold on electrode array\n3. Thermal energy transmitted to myocardial tissue at electrode contact points',
-      notes:'UN-011; REQ-0061 leakage current limit; IEC 60601-1-2 EMC'},
-
-    // id:8  Electrical → unintended arrhythmia induction (UN-011)
-    {id:8,  type:'situation',
-      label:'Unintended arrhythmia induction: inadvertent electrical stimulus via electrode array',
-      x:-155, y:-290,
-      sequence:'1. Atlas electrodes make contact with myocardium\n2. Unintended electrical stimulus delivered outside intentional pacing protocol\n3. Stimulus triggers depolarisation cascade',
-      notes:'UN-011; 3/19 meeting resolved: a specific leakage current threshold is NOT required as a product requirement for arrhythmia prevention — electrical isolation design is the control'},
-
-    // id:9  Kinetic → spline fracture (UN-006, UN-032)
-    {id:9,  type:'situation',
-      label:'Spline fracture: film-coated PCB spline over-deployed beyond rated diameter',
-      x:-155, y:-145,
-      sequence:'1. Operator deploys basket beyond 65 mm maximum rated diameter\n2. PCB film stress exceeds fatigue or yield limit\n3. Spline fractures and fragment detaches intracardially',
-      notes:'UN-006; UN-032; basket diameter range 6–65 mm (UN-026); 14 PSI withstand requirement',
-      evidence:[
-        {type:'predicate', product:'PentaRay NAV ECO (Biosense Webster)',
-         source:'MAUDE MDR 13797074',
-         detail:'During AFib ablation in LA, PentaRay became entangled with a concurrent catheter. One spline fractured and detached. Physician used a snare to retrieve the fragment — patient stable, no surgical intervention required. Root cause confirmed as mid-body spline fracture under entanglement load (not over-deployment). Note: initiating event was entanglement, not over-deployment — review whether sequence of events for id:9 should include entanglement as an alternative trigger.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
-        {type:'predicate', product:'PentaRay NAV ECO (Biosense Webster)',
-         source:'MAUDE MDR 17879204',
-         detail:'Shaft semi-detachment at tip-to-shaft junction during AFib procedure. Shaft found semi-detached near tip on inspection; unknown whether internal wires exposed. Replaced with new device; no patient harm. Connects to PentaRay Recall ID 125726 whose confirmed root cause was insufficient bond of distal tip to catheter shaft (lot-specific manufacturing defect). Relevant to Atlas hub-to-spline bonding process controls.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
-        {type:'predicate', product:'PentaRay NAV ECO — Recall IDs 125726, 159886, 145208, 181285',
-         source:'FDA Recall database (4× Class 2 recalls)',
-         detail:'Four separate Class 2 recalls on PentaRay NAV and NAV ECO catheters. Confirmed root cause for earliest series: insufficient bond of distal tip to catheter shaft (lot-specific). All Class 2 (not Class 1). No patient injuries attributed. Pattern indicates spline-attachment bond is a manufacturing process-sensitive joint requiring incoming inspection and lot-level qualification — not just a design specification.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
-      ]},
-
-    // id:10  Kinetic → tissue denudation (UN-008)
-    {id:10, type:'situation',
-      label:'Tissue denudation: sharp PCB edge contacts and abrades endocardial surface during rotation',
-      x:-155, y:  0,
-      sequence:'1. Atlas basket rotated within cardiac chamber during mapping\n2. Exposed PCB edge or protrusion contacts endocardial wall\n3. Mechanical abrasion strips endocardial surface',
-      notes:'UN-008; edge ≤0.5 mm and protrusion ≤0.5 mm — exact acceptance criteria TBD; Simon/Bobak/Erik to propose criteria or bench test per open action item'},
-
-    // id:11  Kinetic → failed retraction / foreign body (UN-014, UN-039)
-    {id:11, type:'situation',
-      label:'Failed retraction: basket does not fully retract into sheath on withdrawal',
-      x:-155, y: 145,
-      sequence:'1. Basket spline kinks or catches on sheath lip during retraction\n2. Partial deployment persists despite deflation\n3. Operator applies excessive withdrawal force\n4. Spline or PCB fragment separates and remains in vasculature',
-      notes:'UN-014 recapturability; UN-039 emergency recapture time TBD; retractability cycling ≥100 cycles',
-      evidence:[
-        {type:'predicate', product:'HDGrid Advisor (Abbott)',
-         source:'MAUDE MDR 22177493',
-         detail:'Paddle separated from distal shaft during retrograde LV approach when operator pulled catheter back through a kinked sheath. Snare retrieval required. Manufacturer root cause: force applied against IFU instruction ("do not use force to advance or withdraw when resistance is encountered"). Mitigation relied entirely on labeling, not engineering controls. Directly analogous to Atlas basket retraction: if basket catches on sheath lip and operator applies force, fragment separation is the failure mode.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
-        {type:'predicate', product:'Octaray (Biosense Webster)',
-         source:'MAUDE MDR 17971099',
-         detail:'During SVT ablation, Octaray shaft kinked in a tortuous vein on approach to heart. Deflection mechanism locked in fully deflected position — knob could not be moved up or down. Catheter could not be withdrawn through original sheath. Physician had to cut the proximal shaft and advance a long sheath over it to straighten and remove. No patient consequence. Root cause: shaft kink prevented deflection release. Relevant to UN-039 emergency recapture time — test protocol should include a tortuous delivery path condition, not just straight access.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
-      ]},
-
-    // id:12  Fluid/air → air embolism → embolic stroke (UN-010)
-    {id:12, type:'situation',
-      label:'Air embolism: incomplete saline purge leaves air in inflation lumen prior to insertion',
-      x:-155, y: 295,
-      sequence:'1. Operator does not complete saline purge per IFU priming protocol\n2. Air remains in inflation lumen\n3. Air bolus introduced into intracardiac space on basket deployment\n4. Air travels via coronary or cerebral circulation',
-      notes:'UN-010; Atlas inflation path shall be sealed and air-tight (UN-010); CM-000023-OP §3.4',
-      evidence:[
-        {type:'predicate', product:'Constellation (Boston Scientific)',
-         source:'Cleared IFU (EP-284328-AA) — labeled risk',
-         detail:'Constellation IFU contains multi-step sheath-flushing precaution: "To minimise risk of air embolus, flush the Soft Tip Sheath to remove all air before introduction into vasculature. The introduction of the Constellation Catheter into the Soft Tip Sheath also has the potential to introduce air. Therefore, during introduction, again aspirate fluid to expel any air." FDA accepted this as a labeled precaution rather than requiring an engineering control. Most explicit air embolism precaution of all six predicates reviewed — relevant to Atlas IFU priming protocol language and warning prominence.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
-        {type:'predicate', product:'HDGrid Advisor (Abbott)',
-         source:'Cleared IFU (Abbott) — labeled warning',
-         detail:'HDGrid IFU states: "Always verify the tubing and catheter have been properly cleared of air prior to inserting the catheter into the vasculature since entrapped air can cause potential injury or fatality." Consistent with Constellation approach: air embolism controlled via labeling/IFU priming step rather than engineering solution.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
-      ]},
-
-    // id:13  Fluid/air → lumen rupture (UN-032)
-    {id:13, type:'situation',
-      label:'Inflation lumen rupture: pressure exceeds 14 PSI withstand limit',
-      x:-155, y: 445,
-      sequence:'1. Inflation lumen or seal fails under excessive pressure\n2. Fluid or air released into intracardiac space\n3. Pressure loss results in uncontrolled basket expansion or deflation',
-      notes:'UN-032; 14 PSI withstand = 2× safety margin above nominal operating pressure',
-      evidence:[
-        {type:'predicate', product:'Optrell (Biosense Webster)',
-         source:'MAUDE MDR 19140593',
-         detail:'During AFib ablation, irrigation lumen became occluded mid-procedure — flow ceased after catheter exchange. On return evaluation, irrigation tube found kinked close to the tip section. Procedure completed with replacement device; no patient harm. Note: this is a kink/occlusion failure, not a rupture — the failure mode manifests as failed deployment/retraction rather than a pressure event. Relevant to Atlas inflation lumen routing: kinking at the distal shaft-to-tip transition is a separate failure mode from pressure rupture and should be added as a distinct FMEA entry.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
-        {type:'predicate', product:'PentaRay NAV (Biosense Webster)',
-         source:'MAUDE MDR 3785579',
-         detail:'Irrigation tube kinked close to tip during pre-flush — same root cause as Optrell MDR 19140593. Confirms this is a class-wide failure mode for irrigated multi-spline mapping catheters. Both cases: tube kinks at the transition from flexible shaft to constrained distal structure. For Atlas, the inflation lumen has this same transition geometry. Minimum bend radius at the distal junction and lumen securement method are the relevant design controls.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
-      ]},
-
-    // id:14  Biological → hemodynamic obstruction (UN-012)
-    {id:14, type:'situation',
-      label:'Hemodynamic compromise: basket obstructs inflow or outflow across cardiac valve or outflow tract',
-      x:-155, y: 590,
-      sequence:'1. Atlas deployed across a valve plane or within an outflow tract\n2. Basket cross-section obstructs inflow (e.g. mitral/tricuspid) or outflow (e.g. LVOT/RVOT)\n3. Blood flow impeded beyond hemodynamically recoverable threshold\n4. Clinical intervention required (vasopressors, emergent device removal)',
-      notes:'UN-012; risks include both inflow limitation and outflow limitation per design record 3/19; open lattice design required; quantitative obstruction threshold TBD — may require animal study to evaluate',
-      evidence:[
-        {type:'predicate', product:'Constellation (Boston Scientific)',
-         source:'Cleared IFU (EP-284328-AA) — labeled contraindication and warning',
-         detail:'Constellation is the only basket-contact mapping catheter predicate and the closest structural analog for hemodynamic obstruction risk. IFU handling precautions: "Do not torque or rotate catheter while basket is deployed." "Do not advance against resistance." No ventricular use labeled. BSC approach: entirely labeling-based — no quantitative obstruction threshold established in any public document. No MDR for hemodynamic obstruction found in available MAUDE window. For Atlas at 65mm max diameter, the obstruction cross-section will exceed Constellation — quantitative threshold likely requires animal study or CFD rather than labeled precaution alone.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
-      ]},
-
-    // id:15  Biological → thrombus formation (UN-009)
-    {id:15, type:'situation',
-      label:'Thrombus formation: blood stagnation at surface gaps or crevices on catheter',
-      x:-155, y: 740,
-      sequence:'1. Blood contacts gaps, crevices, or thrombogenic surfaces on Atlas exterior\n2. Stagnation promotes platelet activation and fibrin deposition\n3. Thrombus forms on catheter surface and may embolise on withdrawal',
-      notes:'UN-009; smooth surface design required; non-thrombogenic materials required; ISO 10993-4 biocompatibility',
-      evidence:[
-        {type:'predicate', product:'Constellation (Boston Scientific)',
-         source:'Cleared IFU (EP-284328-AA) — labeled risk; IDE study G940612',
-         detail:'Only predicate IFU that explicitly names device geometry as a driver of thrombosis: "Preclinical and clinical testing show that small thrombi may attach to the basket and splines at locations where there is an abrupt change in geometry." FDA accepted this as a labeled warning (not a contraindication) rather than requiring it to be designed out. This is the strongest precedent for how FDA handles design-inherent thrombosis risk at basket geometry transitions. Relevant to Atlas open-lattice PCB spline junctions.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
-        {type:'predicate', product:'HDGrid Advisor (Abbott)',
-         source:'K172393 SSED — thrombogenicity testing',
-         detail:'HDGrid in vivo thrombogenicity testing (ACT >300, heparin) drove a labeled anticoagulation requirement for both right- and left-sided procedures. This is the most recent and stringent thrombogenicity test outcome in the predicate set — FDA accepted it as a labeled contraindication rather than a design change. Establishes that in vivo animal thrombogenicity study is expected for contact multi-electrode mapping catheters, and that results can drive labeled ACT requirements. Both the Constellation and HDGrid precedents confirm in vivo testing is required for this hazard class.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'},
-        {type:'predicate', product:'HDGrid Advisor (Abbott)',
-         source:'MAUDE MDR 10563649',
-         detail:'Patient experienced stroke symptoms ~60 min post-HDGrid procedure. Small clot confirmed on CT and successfully retrieved. ACT maintained >300 throughout. Causation to device could not be determined — classified as possible EP procedure complication. Confirms that even with anticoagulation at therapeutic levels, thromboembolic events occur in this patient population. Post-control occurrence for thrombus → stroke harm path should reflect residual risk even with anticoagulation protocol in place.',
-         addedBy:'Predicate analysis', addedAt:'2026-04-14'}
-      ]},
-
-    // id:16  Mapping → diagnostic error (UN-018, UN-021, UN-023)
-    {id:16, type:'situation',
-      label:'Diagnostic error: incomplete voltage map due to electrode signal dropout or impedance exceedance',
-      x:-155, y: 885,
-      sequence:'1. One or more electrode channels exceed ≤25 ohm impedance limit or lose signal\n2. Channel-to-channel variation exceeds ≤5 ohm tolerance\n3. Mapping software generates incomplete or geometrically distorted voltage map\n4. Operator makes ablation decisions based on incomplete data',
-      notes:'UN-018 ≤25 ohm/channel, ≤5 ohm channel-to-channel; UN-021 80 independent channels; UN-023 voltage map; Pin-Board OTS qualification'},
-
-    // ── Harms ─────────────────────────────────────────────────────
-    {id:17, type:'harm', label:'Tissue damage — Minor',
-      x:195, y:-665, severity:2, postSeverity:2, postOccurrence:1, assessment:'Acceptable',
-      notes:'Severity 2 — Negligible/Minor; superficial abrasion or burn; resolves without surgical intervention'},
-    {id:18, type:'harm', label:'Tissue damage — Moderate',
-      x:195, y:-520, severity:3, postSeverity:3, postOccurrence:1, assessment:'Acceptable',
-      notes:'Severity 3 — Moderate; requires medical or surgical treatment; temporary impairment'},
-    {id:19, type:'harm', label:'Cardiac arrhythmia',
-      x:195, y:-370, severity:4, postSeverity:4, postOccurrence:1, assessment:'Acceptable',
-      notes:'Severity 4 — Serious; life-threatening arrhythmia requiring emergency cardioversion'},
-    {id:20, type:'harm', label:'Myocardial perforation / tamponade',
-      x:195, y:-220, severity:5, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 5 — Catastrophic; post-control assessment pending; Zone 3 — risk-benefit analysis required'},
-    {id:21, type:'harm', label:'Embolic stroke / coronary air embolism',
-      x:195, y: -70, severity:4, postSeverity:4, postOccurrence:2, assessment:'Acceptable',
-      notes:'Severity 4 — Serious; air in coronary or cerebral circulation causing ischaemia'},
-    {id:22, type:'harm', label:'Intracardiac foreign body retention',
-      x:195, y:  80, severity:4, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 4 — Serious; spline or PCB fragment retained; surgical retrieval may be required'},
-    {id:23, type:'harm', label:'Hemodynamic instability requiring intervention',
-      x:195, y: 230, severity:4, postSeverity:4, postOccurrence:1, assessment:'Acceptable',
-      notes:'Severity 4 — Serious; temporary obstruction requiring emergent device removal'},
-    {id:24, type:'harm', label:'Systemic thromboembolism',
-      x:195, y: 380, severity:4, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 4 — Serious; embolised thrombus causing vascular occlusion; post-control assessment pending'},
-    {id:25, type:'harm', label:'Misdiagnosis — incorrect ablation target',
-      x:195, y: 530, severity:3, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 3 — Moderate; ablation performed at incorrect site; arrhythmia recurrence or iatrogenic arrhythmia'},
-    {id:26, type:'harm', label:'Patient fatality',
-      x:195, y: 680, severity:5, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 5 — Catastrophic; from uncontrolled perforation, embolism, or refractory arrhythmia'},
-
-    // ── Risk Controls ─────────────────────────────────────────────
-    // RC-1a-i: Double insulation
-    {id:122, type:'control',
-      label:'IEC 60601-1 double insulation — handle connector and electrical housing (UN-015)',
-      x:515, y:-650,
-      notes:'UN-015; IEC 60601-1 §8.8; double insulation provides two independent barriers against electrical shock',
-      verification:'Dielectric strength test per IEC 60601-1; production test record'},
-    // RC-1a-ii: IP54 housing
-    {id:123, type:'control',
-      label:'IP54 housing — splash-proof enclosure for handle and electrical components (UN-015)',
-      x:515, y:-590,
-      notes:'UN-015; IP54 rating prevents moisture ingress during cleaning and incidental fluid exposure',
-      verification:'IP54 spray test per IEC 60529; production test record'},
-    // RC-1b: Electric shock — IFU
-    {id:101, type:'control',
-      label:'IFU cleaning instructions — approved cleaning methods only (UN-015)',
-      x:515, y:-555,
-      notes:'UN-015; CM-000023-OP §3.2; prohibits liquid cleaning agents on handle connector',
-      verification:'IFU cleaning section review; usability validation of cleaning procedure'},
-
-    // RC-2a: Leakage current limit
-    {id:102, type:'control',
-      label:'Leakage current limit per IEC 60601-1-2 (UN-011)',
-      x:515, y:-470,
-      notes:'UN-011; IEC 60601-1-2; leakage current ≤X µA per applicable clause',
-      verification:'Leakage current measurement; EMC test report VP-EMC-001'},
-    // RC-2b: EMC shielding
-    {id:103, type:'control',
-      label:'EMC shielding design — electrode array and cable assembly (UN-011)',
-      x:515, y:-405,
-      notes:'UN-011; IEC 60601-1-2; shielding prevents induced current from adjacent RF ablation systems',
-      verification:'EMC test report VP-EMC-001; shielded cable qualification'},
-
-    // RC-3: Unintended arrhythmia
-    {id:29, type:'control',
-      label:'Electrical isolation design; no stimulus to tissue except intentional pacing (UN-011)',
-      x:515, y:-290,
-      notes:'UN-011; intentional pacing via EnSite only; no passive electrical energy delivery',
-      verification:'Electrical isolation test; functional verification of pacing stimulus pathway'},
-
-    // RC-4a: Deployment stop
-    {id:104, type:'control',
-      label:'Deployment stop at 65 mm maximum rated diameter (UN-006)',
-      x:515, y:-175,
-      notes:'UN-006; UN-026; basket diameter range 6–65 mm; mechanical stop prevents over-deployment beyond rated size',
-      verification:'Deployment force limit verification; dimensional test at max diameter'},
-    // RC-4b: Spline fatigue test
-    {id:105, type:'control',
-      label:'Spline fatigue test — PCB film cyclic stress verification (UN-006, UN-032)',
-      x:515, y:-105,
-      notes:'UN-006; UN-032; fatigue testing validates spline durability under cyclic inflation/deflation loading',
-      verification:'VP-0014 Spline Fatigue Test; pressure withstand test to 14 PSI'},
-
-    // RC-5a: Compliant encapsulating material
-    {id:118, type:'control',
-      label:'Compliant encapsulating exterior material — polyurethane overmould on PCB splines (UN-008)',
-      x:515, y:-30,
-      notes:'UN-008; compliant material prevents direct PCB contact with tissue; polyurethane encapsulation of flex-PCB',
-      verification:'Material characterisation; durometer/compliance testing; design review confirming full PCB encapsulation'},
-    // RC-5b: Edge and protrusion spec
-    {id:119, type:'control',
-      label:'Edge ≤0.5 mm and protrusion ≤0.5 mm (UN-008 — acceptance criteria under review)',
-      x:515, y: 45,
-      notes:'UN-008; exact threshold for edges and protrusions still being vetted — TBD before design freeze; open action: Simon/Bobak/Erik to propose criteria or benchtop test',
-      verification:'Dimensional inspection; surface finish characterisation; TBD acceptance criteria pending engineering team input'},
-
-    // RC-6a: Retractability cycling
-    {id:106, type:'control',
-      label:'Retractability cycling ≥100 cycles — basket retraction durability (UN-014)',
-      x:515, y: 115,
-      notes:'UN-014; retraction cycling validates mechanical integrity over expected use life',
-      verification:'VP-RET-001 retraction cycling test; shaft integrity test ≥100 cycles'},
-    // RC-6b-i: Emergency recapture time requirement
-    {id:124, type:'control',
-      label:'Emergency recapture time requirement — basket recaptured within defined time limit (UN-039)',
-      x:515, y: 175,
-      notes:'UN-039; emergency recapture time TBD (Kevin to define); time limit must be clinically meaningful for emergency scenario',
-      verification:'Emergency recapture time test with representative users; simulated use validation'},
-    // RC-6b-ii: IFU retraction instructions
-    {id:125, type:'control',
-      label:'IFU retraction technique instructions — step-by-step emergency withdrawal procedure (UN-039)',
-      x:515, y: 250,
-      notes:'UN-039; IFU must document emergency retraction steps clearly; instructions reviewed for clarity and completeness',
-      verification:'IFU document review confirming presence and adequacy of retraction instructions; usability review'},
-
-    // RC-7a: Saline priming IFU
-    {id:108, type:'control',
-      label:'Mandatory saline priming in IFU; bubble inspection protocol (UN-010)',
-      x:515, y: 265,
-      notes:'UN-010; CM-000023-OP §3.4; IFU specifies mandatory saline purge before insertion',
-      verification:'Priming bubble inspection test; IFU priming procedure usability validation'},
-    // RC-7b: Sealed inflation lumen
-    {id:109, type:'control',
-      label:'Sealed air-tight inflation lumen — design requirement (UN-010)',
-      x:515, y: 340,
-      notes:'UN-010; inflation path sealed and air-tight under nominal conditions; prevents air ingress during use',
-      verification:'Inflation path integrity test; seal leak test at nominal and 2× operating pressure'},
-
-    // RC-8a: Fixed-volume syringe
-    {id:120, type:'control',
-      label:'Fixed-volume syringe with mechanical stop — limits maximum deliverable pressure (UN-032)',
-      x:515, y: 415,
-      notes:'UN-032; fixed-volume syringe design prevents operator from exceeding safe inflation volume; mechanical stop is primary pressure control',
-      verification:'Syringe volume stop verification; functional test confirming mechanical stop at rated volume'},
-    // RC-8b: 14 PSI withstand test
-    {id:121, type:'control',
-      label:'Inflation lumen 14 PSI withstand test — 2× safety margin (UN-032)',
-      x:515, y: 490,
-      notes:'UN-032; 14 PSI = 2× nominal operating pressure; withstand test verifies lumen and seal integrity under worst-case pressure',
-      verification:'Pressure withstand test to 14 PSI; lumen integrity inspection post-test'},
-
-    // RC-9a: Open lattice design
-    {id:110, type:'control',
-      label:'Open lattice basket design — no membrane; minimises flow obstruction (UN-012)',
-      x:515, y: 555,
-      notes:'UN-012; lattice geometry allows blood flow through basket during deployment; open lattice is design requirement',
-      verification:'Bench flow model; hemodynamic obstruction threshold TBD (Kevin/Jan to define; may require animal study)'},
-    // RC-9b: IFU contraindication undersized chambers
-    {id:111, type:'control',
-      label:'IFU contraindication for undersized chambers and valvular anatomy (UN-012)',
-      x:515, y: 635,
-      notes:'UN-012; undersized anatomy (e.g. paediatric, small atrium) excluded; quantitative threshold TBD',
-      verification:'IFU contraindication section; pre-procedure anatomy assessment protocol'},
-
-    // RC-10a: Smooth surface design
-    {id:112, type:'control',
-      label:'Smooth exterior surface design — no gaps or crevices on catheter (UN-009)',
-      x:515, y: 700,
-      notes:'UN-009; avoid stagnation areas; smooth outer surface minimises platelet activation; no quantitative surface criteria found in ISO 10993-4 — Erik to check with Polyzen',
-      verification:'Surface finish characterisation; dimensional inspection for gaps and crevices; surface roughness measurement'},
-    // RC-10b-i: Non-thrombogenic materials selection
-    {id:126, type:'control',
-      label:'Non-thrombogenic material selection — polyurethane, Kapton, Pt-Ir electrodes (UN-009)',
-      x:515, y: 760,
-      notes:'UN-009; materials selected for known biocompatibility; Polyzen polyurethane and Pt-Ir are established non-thrombogenic materials in cardiovascular devices',
-      verification:'Material selection rationale document; supplier biocompatibility data; design review sign-off'},
-    // RC-10b-ii: ISO 10993-4 haemocompatibility testing
-    {id:127, type:'control',
-      label:'ISO 10993-4 haemocompatibility testing — thrombogenicity and haemolysis (UN-009)',
-      x:515, y: 835,
-      notes:'UN-009; ISO 10993-4; in vivo thrombogenicity characterisation required (Jan to schedule; lead TBD: Simon/Bobak); haemolysis testing required',
-      verification:'Formal thrombogenicity testing (in vivo); haemolysis test; ISO 10993-4 test report'},
-    // RC-10c: Sheath irrigation
-    {id:114, type:'control',
-      label:'Sheath irrigation protocol during FIH clinical study — procedural mitigation (UN-009)',
-      x:515, y: 855,
-      notes:'UN-009; sheath irrigation reduces blood stasis at catheter shaft; procedural mitigation during FIH study only',
-      verification:'Sheath irrigation protocol in FIH study protocol; clinical data from FIH study'},
-
-    // RC-11a: Impedance specification
-    {id:115, type:'control',
-      label:'≤25 ohm channel impedance; ≤5 ohm channel-to-channel variation (UN-018)',
-      x:515, y: 845,
-      notes:'UN-018; UN-021; 25 ohm threshold confirmed (covers Atlas to end of cable into Pin-Board); 80 independent channels',
-      verification:'80-channel impedance verification (≤25 ohm each; ≤5 ohm channel-to-channel)'},
-    // RC-11b: Pin-Board OTS qualification
-    {id:116, type:'control',
-      label:'Pin-Board OTS qualification — 32-pin DAQ accessory (UN-021)',
-      x:515, y: 930,
-      notes:'UN-021; Pin-Board: 32-pin model, 20 pins per board, 4 boards total for 80 channels; OTS qualification required',
-      verification:'Pin-Board OTS qualification per supplier spec; incoming inspection procedure'},
-    // RC-11c: EnSite compatibility
-    {id:117, type:'control',
-      label:'EnSite mapping system compatibility verification (UN-023)',
-      x:515, y: 1010,
-      notes:'UN-023; voltage map generated via EnSite; signal loss indicator in mapping software',
-      verification:'EnSite compatibility test; voltage map accuracy verification'},
-
-    // ── NEW NODES FROM PRE-SUB GAP ANALYSIS ──────────────────────
-
-    // NEW HARMS
-    {id:50, type:'harm', label:'Prosthetic valve damage / regurgitation',
-      x:195, y:830, severity:4, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 4 — Serious; mechanical damage to prosthetic valve leaflet or occluder; may require surgical revision'},
-    {id:51, type:'harm', label:'Vascular damage — access site or intracardiac',
-      x:195, y:980, severity:4, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 4 — Serious; vascular tear, haematoma, or pseudoaneurysm at femoral access or intracardiac vessel; may require surgical repair'},
-    {id:52, type:'harm', label:'Iatrogenic atrial septal defect / shunt',
-      x:195, y:1130, severity:3, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 3 — Moderate; residual septal defect from 12Fr transseptal puncture or baffle injury; may require closure procedure'},
-    {id:53, type:'harm', label:'Myocardial inflammation / biological tissue reaction',
-      x:195, y:1280, severity:3, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 3 — Moderate; biological tissue response to device materials (PCB, polyurethane, adhesive); complement activation or local inflammatory response'},
-    {id:54, type:'harm', label:'Systemic inflammatory response / complement activation',
-      x:195, y:1430, severity:4, postSeverity:null, postOccurrence:null, assessment:'',
-      notes:'Severity 4 — Serious; systemic complement activation from blood-contacting device materials; anaphylaxis, cytokine release; distinct from local tissue inflammation'},
-
-    // NEW SITUATIONS — Kinetic hazard (node 2)
-    {id:55, type:'situation', label:'Prosthetic valve contact: basket deploys adjacent to prosthetic valve',
-      x:-155, y:830,
-      sequence:'1. Atlas deployed in ventricle or atrium with prosthetic valve in situ\n2. Inflated spline contacts prosthetic valve leaflet or occluder\n3. Mechanical force damages valve components\n4. Valve regurgitation or dysfunction results',
-      notes:'Contraindicated per IFU §6.3; prosthetic valve patients excluded from indicated use'},
-    {id:56, type:'situation', label:'Chordae tendineae / papillary muscle entanglement during rotation or retraction',
-      x:-155, y:980,
-      sequence:'1. Atlas deployed in left ventricle\n2. Spline tip or edge catches on chordae tendineae or papillary muscle during rotation or retraction\n3. Traction or tearing force applied to subvalvular structures\n4. Structural injury or avulsion results',
-      notes:'Pre-sub §5.5 explicitly states soft splines do not disrupt chordae/papillary muscles — design control is <0.03N force limit; distinct from hemodynamic obstruction (node 14)'},
-    {id:57, type:'situation', label:'Telescoping rod fracture during deployment or retraction',
-      x:-155, y:1130,
-      sequence:'1. Telescoping rod subjected to bending or torsional stress during basket deployment or retraction\n2. Rod fractures at stress concentration point\n3. Fragment detaches within cardiac chamber or vasculature',
-      notes:'Rod is structural backbone for basket geometry adjustment; fracture = loss of basket control; distinct from spline fracture (node 9)'},
-    {id:58, type:'situation', label:'Distal hub adhesive bonding failure — basket assembly detachment',
-      x:-155, y:1280,
-      sequence:'1. Adhesive bond at distal hub degrades or fails under cyclic mechanical stress or chemical exposure\n2. One or more splines detach from hub\n3. Detached spline assembly remains in cardiac chamber',
-      notes:'Hub bonds all 4 splines to inflation lumen; catastrophic failure mode — more severe than single spline fracture (node 9); manufacturing critical process per §5.3'},
-    {id:59, type:'situation', label:'Catheter shaft kinking — tip buckle or PEBAX lumen collapse',
-      x:-155, y:1430,
-      sequence:'1. Catheter shaft subjected to excessive bending force during navigation through vasculature or across cardiac valve\n2. PEBAX lumen kinks or collapses\n3. Catheter cannot be advanced or withdrawn normally\n4. Forced extraction causes vascular or cardiac trauma',
-      notes:'Bench test: tip buckle and pushability/trackability (§8.5.1.2); shaft kinking is a foreseeable failure mode during transseptal and LV navigation'},
-    {id:60, type:'situation', label:'Shaft torque failure — basket cannot be rotated for mapping',
-      x:-155, y:1580,
-      sequence:'1. Torque transmission from handle to basket shaft fails\n2. Rotation of basket not achievable\n3. Operator cannot acquire full-chamber voltage map\n4. Ablation decisions based on incomplete data',
-      notes:'OBSERVED FAILURE: Version 4 animal study §8.5.2.1 — "new delivery catheter was not able to properly torque without handle"; confirmed real failure mode'},
-    {id:61, type:'situation', label:'Handle-shaft joint failure — shaft separation from handle',
-      x:-155, y:1730,
-      sequence:'1. Handle-shaft mechanical joint fails under torque or tensile load during rotation or withdrawal\n2. Shaft separates from handle\n3. Distal catheter assembly retained in vasculature or cardiac chamber',
-      notes:'Bench test: catheter joint strength (§8.5.1.2); joint failure = complete loss of device control'},
-    {id:62, type:'situation', label:'Ventricular contraction cyclic stress — spline fatigue during VTach mapping',
-      x:-155, y:1880,
-      sequence:'1. Atlas deployed in left ventricle during active VTach mapping\n2. Continuous ventricular contractions impose cyclic mechanical stress on inflated splines beyond bench test conditions\n3. Spline material fatigue accelerated\n4. Spline fracture or seal failure occurs intraprocedurally',
-      notes:'Pre-sub §5.8: 35% of VTach patients become hemodynamically unstable; device deployed in beating, contracting ventricle; cyclic stress not replicated in bench 100-cycle test'},
-    {id:63, type:'situation', label:'Steerable sheath articulation failure during LV or PV navigation',
-      x:-155, y:2030,
-      sequence:'1. Steerable guiding sheath (e.g. Destino Twister) required for LV or PV access\n2. Sheath articulation mechanism fails or provides insufficient deflection\n3. Operator applies excessive force to navigate\n4. Sheath or catheter causes vascular or cardiac trauma',
-      notes:'System-level risk; steerable sheath is required accessory for LV/PV access per §5.6; articulation failure is foreseeable during complex navigation'},
-    {id:64, type:'situation', label:'Bonded zone weld failure — asymmetric spline inflation',
-      x:-155, y:2180,
-      sequence:'1. RF weld or impulse weld bonded zone fails in one or more splines\n2. Inflation dynamics change — affected spline inflates asymmetrically or over-inflates locally\n3. Uneven electrode contact or uncontrolled spline geometry\n4. Focal mechanical trauma or mapping error',
-      notes:'Bonded zones control inflation dynamics per §5.3; weld failure changes spline shape; distinct from gross lumen rupture (node 13) — seal intact but geometry affected'},
-    {id:65, type:'situation', label:'Use of expired or degraded device beyond shelf life',
-      x:-155, y:2330,
-      sequence:'1. Device used beyond ASTM1980 shelf life or after storage condition violation\n2. Polyurethane degradation affects spline inflation dynamics and structural integrity\n3. Spline seal failure or reduced mechanical performance\n4. Unexpected failure mode during procedure',
-      notes:'Shelf life 6 months accelerated aging per §8.2; polyurethane and adhesive degradation foreseeable; use beyond shelf life is foreseeable misuse'},
-
-    // NEW SITUATIONS — Fluid/air hazard (node 3)
-    {id:66, type:'situation', label:'Spline deflation failure — inflation lumen blockage prevents basket collapse',
-      x:-155, y:2480,
-      sequence:'1. Inflation lumen blocked or check valve fails in closed position\n2. Spline remains pressurised and cannot physically collapse\n3. Inflated basket cannot retract into delivery sheath\n4. Operator applies withdrawal force with basket expanded\n5. Spline or hub fragment detaches intracardially',
-      notes:'Distinct from node 11 (mechanical kinking); root cause is fluid/pneumatic — pressurised spline physically cannot deflate; different hazard parent and different mitigation required'},
-
-    // NEW SITUATIONS — Biological/chemical hazard (node 4)
-    {id:67, type:'situation', label:'Pre-existing intracardiac thrombus / myxoma dislodgement',
-      x:-155, y:2630,
-      sequence:'1. Atlas deployed in cardiac chamber with pre-existing thrombus or intracardiac myxoma\n2. Inflated spline contacts and dislodges existing clot or tumour fragment\n3. Embolus travels via coronary or cerebral circulation',
-      notes:'Contraindicated per §6.3; distinct from new thrombus formation (node 15) — pre-existing clot, different mechanism and immediate embolic risk'},
-
-    // NEW SITUATIONS — Incomplete mapping hazard (node 5)
-    {id:68, type:'situation', label:'Incomplete map — operator fails to complete full rotation protocol',
-      x:-155, y:2780,
-      sequence:'1. Operator does not complete required rotation sequence per IFU\n2. Electrodes acquire signals from partial chamber surface only\n3. Mapping software generates voltage map with blind spots\n4. Ablation decisions based on incomplete data',
-      notes:'Operator use error distinct from device failure (node 16); HF critical task per §8.6 — rotation protocol identified as critical IFU step'},
-    {id:69, type:'situation', label:'Inter-spline geometric gap — cardiac wall area between splines not mapped',
-      x:-155, y:2930,
-      sequence:'1. Atlas fully deployed with 4 splines in contact with chamber wall\n2. Areas of cardiac wall between splines (inter-spline gaps) have no electrode coverage\n3. Arrhythmia substrate in inter-spline gap region not detected\n4. Ablation target missed',
-      notes:'Inherent geometric limitation of 4-spline design vs 8-spline predicate; pre-sub §7.3.2 acknowledges spline count difference; not a device failure — a coverage design limitation'},
-    {id:70, type:'situation', label:'EnSite system failure or malfunction during mapping',
-      x:-155, y:3080,
-      sequence:'1. EnSite mapping system experiences software crash, hardware fault, or signal processing failure\n2. 3D localisation and voltage map data lost or corrupted\n3. Operator cannot confirm electrode contact or spatial position\n4. Ablation decisions made without complete mapping data',
-      notes:'System-level risk; EnSite is required for 3D localisation and voltage map per §5.7; distinct from Atlas electrode failure (node 16) — root cause is the mapping system, not the catheter'},
-
-    // NEW SITUATIONS — Transseptal / access (kinetic — system level)
-    {id:71, type:'situation', label:'Transseptal puncture complication — access system injury',
-      x:-155, y:3230,
-      sequence:'1. Transseptal puncture needle and sheath advanced through interatrial septum\n2. Needle tip perforates beyond septum or dilator causes septal tear\n3. Cardiac perforation or tamponade results from access procedure',
-      notes:'System-level risk per ISO 14971 foreseeable use; transseptal kit used in combination with Atlas 360; access complication is foreseeable during normal intended use'},
-    {id:72, type:'situation', label:'Femoral / vascular access site injury',
-      x:-155, y:3380,
-      sequence:'1. Large-bore (12Fr) femoral venous access established for catheter delivery\n2. Vessel wall injury during sheath insertion or removal\n3. Haematoma, pseudoaneurysm, or arteriovenous fistula at access site',
-      notes:'System-level risk; 12Fr is larger than most EP procedures; foreseeable use of access system in combination with Atlas 360; pre-sub §8.5.2.3 secondary endpoints include vascular damage'},
-    {id:73, type:'situation', label:'12Fr transseptal puncture — residual iatrogenic ASD',
-      x:-155, y:3530,
-      sequence:'1. 12Fr transseptal sheath crosses interatrial septum\n2. 12Fr puncture site larger than spontaneous closure threshold\n3. Residual atrial septal defect persists post-procedure\n4. Left-to-right shunt with potential for paradoxical embolism',
-      notes:'Pre-sub §7.3.1 explicitly acknowledges 12Fr vs 8.5Fr predicate size difference; larger puncture = greater residual ASD risk; distinct from baffle/patch contraindication (item 5)'},
-
-    // NEW SITUATIONS — Marker band (kinetic, node 2)
-    {id:74, type:'situation', label:'Radiopaque marker band detachment — adhesive or bonding failure',
-      x:-155, y:3680,
-      sequence:'1. Pt-Ir marker band adhesive or mechanical bond degrades under cyclic stress or chemical exposure in vivo\n2. Marker band detaches from catheter tip\n3. Radiopaque metallic fragment retained in vasculature or cardiac chamber',
-      notes:'Marker bands identified as patient/blood-contacting component in §5.2 Table 2; detachment mechanism distinct from spline fracture — adhesive/bond failure rather than PCB mechanical failure'},
-
-    // NEW CONTROLS
-    {id:75, type:'control',
-      label:'IFU contraindications: prosthetic valves; prior ventriculotomy/atriotomy <4 weeks; retrograde trans-aortic approach with aortic valve replacement; coronary arterial use',
-      x:515, y:1130,
-      notes:'§6.3 contraindications; patient screening required pre-procedure; clinical exclusion criteria in IFU',
-      verification:'IFU contraindication section; pre-procedure patient screening checklist'},
-    {id:76, type:'control',
-      label:'IFU contraindication: patients with interatrial baffle or patch (transseptal approach); intracardiac thrombus or myxoma',
-      x:515, y:1330,
-      notes:'§6.3 contraindications; pre-procedure imaging (TTE/TEE) to confirm absence of thrombus or structural baffle',
-      verification:'IFU contraindication section; pre-procedure imaging protocol'},
-    {id:77, type:'control',
-      label:'Heparin / systemic anticoagulation protocol during procedure; ACT monitoring',
-      x:515, y:1530,
-      notes:'Procedural mitigation for thrombus formation; anticoagulation used in all FIH and GLP studies per §8.5.2; ACT target per institutional EP protocol',
-      verification:'Clinical protocol; FIH study protocol anticoagulation section'},
-    {id:78, type:'control',
-      label:'Fluoroscopy + TEE/ICE real-time imaging during deployment; visual confirmation of basket position before rotation',
-      x:515, y:1730,
-      notes:'§5.5 and §8.5.2.3 study procedures; fluoroscopy confirms basket position; TEE/ICE confirms no structural contact or injury; procedural mitigation for perforation, hemodynamic, and entanglement situations',
-      verification:'IFU deployment procedure; FIH study imaging protocol'},
-    {id:79, type:'control',
-      label:'Spline block force design limit <0.03N; verification by block force measurement test',
-      x:515, y:1930,
-      notes:'§5.1 and §8.5.1 Fig 8; spline force <0.03N confirmed by development testing; prevents tissue trauma during contact and rotation; formal verification required at design freeze',
-      verification:'Block force measurement protocol; VP-FORCE-001 (planned); pre-sub Fig 8 development data'},
-    {id:80, type:'control',
-      label:'Full ISO 10993 biocompatibility test battery: cytotoxicity, sensitisation, intracutaneous reactivity, systemic toxicity, pyrogenicity, hemolysis, complement activation, thrombogenicity',
-      x:515, y:2130,
-      notes:'§8.3 Table 4; all blood-contacting and patient-contacting components tested on final sterilised device; addresses biological/chemical hazard chain including complement activation and tissue inflammation',
-      verification:'ISO 10993-1 through 10993-12; biocompatibility test reports per §8.3 Table 4'},
-
-  ];
-
-  ns.forEach(d=>nodes.push({
-    w:190, h:60, notes:'', postSeverity:null, postOccurrence:null,
-    sequence:'', assessment:'', verification:'', ...d
-  }));
-
-  // ── Hazard → Situation ────────────────────────────────────────
-  [
-    [1, 6],  // Electrical → electric shock
-    [1, 7],  // Electrical → leakage current / thermal
-    [1, 8],  // Electrical → unintended arrhythmia induction
-    [2, 9],  // Kinetic → spline fracture
-    [2,10],  // Kinetic → tissue denudation
-    [2,11],  // Kinetic → failed retraction
-    [3,12],  // Fluid/air → air embolism
-    [3,13],  // Fluid/air → lumen rupture
-    [4,14],  // Biological → hemodynamic compromise
-    [4,15],  // Biological → thrombus formation
-    [5,16],  // Mapping → diagnostic error
-  ].forEach(([f,t])=>edges.push({from:f,to:t,occurrence:null}));
-
-  // ── Situation → Harm (P= initial occurrence) ─────────────────
-  [
-    // Electric shock → tissue damage minor/moderate
-    [6, 17, 2], [6, 18, 2],
-    // Leakage current → tissue damage minor, cardiac arrhythmia
-    [7, 17, 2], [7, 19, 2],
-    // Unintended arrhythmia induction → cardiac arrhythmia, fatality
-    [8, 19, 2], [8, 26, 1],
-    // Spline fracture → tissue damage moderate, perforation/tamponade, foreign body retention
-    [9, 18, 2], [9, 20, 2], [9, 22, 2],
-    // Tissue denudation → tissue damage minor/moderate
-    [10, 17, 2], [10, 18, 2],
-    // Failed retraction → foreign body retention, perforation/tamponade
-    [11, 22, 2], [11, 20, 2],
-    // Air embolism → embolic stroke / coronary air embolism
-    [12, 21, 2],
-    // Lumen rupture → embolic stroke, perforation/tamponade
-    [13, 21, 2], [13, 20, 2],
-    // Hemodynamic compromise → hemodynamic instability
-    [14, 23, 2],
-    // Thrombus → systemic thromboembolism, fatality
-    [15, 24, 2], [15, 26, 1],
-    // Diagnostic error → misdiagnosis
-    [16, 25, 2],
-  ].forEach(([f,t,o])=>edges.push({from:f,to:t,occurrence:o}));
-
-  // ── Harm → Risk Control ────────────────────────────────────
-  [
-    [17,79], // Tissue damage — Minor → Spline block force design limit <0.
-    [17,101], // Tissue damage — Minor → IFU cleaning instructions — approve
-    [17,102], // Tissue damage — Minor → Leakage current limit per IEC 60601
-    [17,103], // Tissue damage — Minor → EMC shielding design — electrode ar
-    [17,118], // Tissue damage — Minor → Compliant encapsulating exterior ma
-    [17,119], // Tissue damage — Minor → Edge ≤0.5 mm and protrusion ≤0.5 mm
-    [17,122], // Tissue damage — Minor → IEC 60601-1 double insulation — han
-    [17,123], // Tissue damage — Minor → IP54 housing — splash-proof enclosu
-    [18,78], // Tissue damage — Moderate → Fluoroscopy + TEE/ICE real-time ima
-    [18,79], // Tissue damage — Moderate → Spline block force design limit <0.
-    [18,101], // Tissue damage — Moderate → IFU cleaning instructions — approve
-    [18,104], // Tissue damage — Moderate → Deployment stop at 65 mm maximum ra
-    [18,105], // Tissue damage — Moderate → Spline fatigue test — PCB film cycl
-    [18,118], // Tissue damage — Moderate → Compliant encapsulating exterior ma
-    [18,119], // Tissue damage — Moderate → Edge ≤0.5 mm and protrusion ≤0.5 mm
-    [18,122], // Tissue damage — Moderate → IEC 60601-1 double insulation — han
-    [18,123], // Tissue damage — Moderate → IP54 housing — splash-proof enclosu
-    [19,29], // Cardiac arrhythmia → Electrical isolation design; no sti
-    [19,102], // Cardiac arrhythmia → Leakage current limit per IEC 60601
-    [19,103], // Cardiac arrhythmia → EMC shielding design — electrode ar
-    [20,75], // Myocardial perforation / tamponade → IFU contraindications: prosthetic v
-    [20,78], // Myocardial perforation / tamponade → Fluoroscopy + TEE/ICE real-time ima
-    [20,79], // Myocardial perforation / tamponade → Spline block force design limit <0.
-    [20,104], // Myocardial perforation / tamponade → Deployment stop at 65 mm maximum ra
-    [20,105], // Myocardial perforation / tamponade → Spline fatigue test — PCB film cycl
-    [20,106], // Myocardial perforation / tamponade → Retractability cycling ≥100 cycles 
-    [20,120], // Myocardial perforation / tamponade → Fixed-volume syringe with mechanica
-    [20,121], // Myocardial perforation / tamponade → Inflation lumen 14 PSI withstand te
-    [20,124], // Myocardial perforation / tamponade → Emergency recapture time requiremen
-    [20,125], // Myocardial perforation / tamponade → IFU retraction technique instructio
-    [21,76], // Embolic stroke / coronary air embol → IFU contraindication: patients with
-    [21,80], // Embolic stroke / coronary air embol → Full ISO 10993 biocompatibility tes
-    [21,108], // Embolic stroke / coronary air embol → Mandatory saline priming in IFU; bu
-    [21,109], // Embolic stroke / coronary air embol → Sealed air-tight inflation lumen — 
-    [21,120], // Embolic stroke / coronary air embol → Fixed-volume syringe with mechanica
-    [21,121], // Embolic stroke / coronary air embol → Inflation lumen 14 PSI withstand te
-    [22,78], // Intracardiac foreign body retention → Fluoroscopy + TEE/ICE real-time ima
-    [22,104], // Intracardiac foreign body retention → Deployment stop at 65 mm maximum ra
-    [22,105], // Intracardiac foreign body retention → Spline fatigue test — PCB film cycl
-    [22,106], // Intracardiac foreign body retention → Retractability cycling ≥100 cycles 
-    [22,124], // Intracardiac foreign body retention → Emergency recapture time requiremen
-    [22,125], // Intracardiac foreign body retention → IFU retraction technique instructio
-    [23,79], // Hemodynamic instability requiring i → Spline block force design limit <0.
-    [23,110], // Hemodynamic instability requiring i → Open lattice basket design — no mem
-    [23,111], // Hemodynamic instability requiring i → IFU contraindication for undersized
-    [24,77], // Systemic thromboembolism → Heparin / systemic anticoagulation 
-    [24,80], // Systemic thromboembolism → Full ISO 10993 biocompatibility tes
-    [24,112], // Systemic thromboembolism → Smooth exterior surface design — no
-    [24,114], // Systemic thromboembolism → Sheath irrigation protocol during F
-    [24,126], // Systemic thromboembolism → Non-thrombogenic material selection
-    [24,127], // Systemic thromboembolism → ISO 10993-4 haemocompatibility test
-    [25,115], // Misdiagnosis — incorrect ablation t → ≤25 ohm channel impedance; ≤5 ohm c
-    [25,116], // Misdiagnosis — incorrect ablation t → Pin-Board OTS qualification — 32-pi
-    [25,117], // Misdiagnosis — incorrect ablation t → EnSite mapping system compatibility
-    [26,29], // Patient fatality → Electrical isolation design; no sti
-    [26,75], // Patient fatality → IFU contraindications: prosthetic v
-    [26,76], // Patient fatality → IFU contraindication: patients with
-    [26,77], // Patient fatality → Heparin / systemic anticoagulation 
-    [26,80], // Patient fatality → Full ISO 10993 biocompatibility tes
-    [26,112], // Patient fatality → Smooth exterior surface design — no
-    [26,114], // Patient fatality → Sheath irrigation protocol during F
-    [26,126], // Patient fatality → Non-thrombogenic material selection
-    [26,127], // Patient fatality → ISO 10993-4 haemocompatibility test
-    [50,75], // Prosthetic valve damage / regurgita → IFU contraindications: prosthetic v
-    [51,75], // Vascular damage — access site or in → IFU contraindications: prosthetic v
-    [51,78], // Vascular damage — access site or in → Fluoroscopy + TEE/ICE real-time ima
-    [52,76], // Iatrogenic atrial septal defect / s → IFU contraindication: patients with
-  ].forEach(([f,t])=>edges.push({from:f,to:t,occurrence:null}));
-
-
-  // ── Gap analysis edges: Hazard → Situation (IDs 55–74) ──────
-  [
-    [2,55,null],[2,56,null],[2,57,null],[2,58,null],[2,59,null],
-    [2,60,null],[2,61,null],[2,62,null],[2,63,null],[2,64,null],
-    [2,65,null],[2,74,null],
-    [3,66,null],
-    [4,67,null],
-    [5,68,null],[5,69,null],[5,70,null],
-    [2,71,null],[2,72,null],[2,73,null],
-  ].forEach(([f,t,o])=>edges.push({from:f,to:t,occurrence:o||null}));
-
-  // ── Gap analysis edges: Situation → Harm (IDs 55–74) ────────
-  [
-    [55,50,2],[55,26,1],
-    [56,18,2],[56,20,2],
-    [57,22,2],[57,20,2],
-    [58,22,1],[58,20,1],
-    [59,51,2],[59,22,2],
-    [60,25,2],
-    [61,22,2],[61,51,2],
-    [62,20,2],[62,22,2],
-    [63,20,2],[63,51,2],
-    [64,18,2],[64,25,2],
-    [65,20,2],[65,22,2],
-    [66,22,2],[66,20,2],
-    [67,21,1],[67,26,1],
-    [68,25,2],
-    [69,25,2],
-    [70,25,2],
-    [71,20,2],[71,51,2],
-    [72,51,2],
-    [73,52,2],
-    [74,22,2],
-  ].forEach(([f,t,o])=>edges.push({from:f,to:t,occurrence:o||null}));
-
-  // Harms 53/54 (inflammation/complement) connect from biological situations
-  [[15,53,2],[15,54,2],[67,53,2],[67,54,2]].forEach(([f,t,o])=>edges.push({from:f,to:t,occurrence:o}));
-
-  // ── Gap analysis harm→ctrl edges (IDs 50–54) ─────────────────
-  // These are covered in the Harm→Risk Control block above for 50,51,52
-  // 53 (myocardial inflammation) and 54 (systemic inflammatory) need ctrl connections
-  [
-    [53,80],[53,126],[53,127],  // inflammation → ISO 10993 controls
-    [54,80],[54,126],[54,127],  // complement activation → ISO 10993 controls
-  ].forEach(([f,t])=>edges.push({from:f,to:t,occurrence:null}));
-
-  nextId=128;
-  selected=null;
-  document.getElementById('edit-panel').style.display='none';
-  // The sample literal is still in v1 shape (Harm→Control edges, post-control fields on
-  // harm nodes). Run the migration to convert to v2 so the user sees the new model.
-  const migrated=migrateBackupV1toV2(nodes,edges);
-  nodes=migrated.nodes;edges=migrated.edges;
-  clearFocus();closeEdgePopup();updAll();
-  setTimeout(()=>{
-    autoLayout();
-    // Force save to Supabase so the correct diagram persists on next login
-    if(sb) saveToSupabase('Loaded Example diagram');
-  },80);
-}
 
 // ── Connection rules (per ISO 14971 risk management process) ───────
 // Schema v2: Harm→Control edges removed. Controls are reusable, free-standing
@@ -5318,9 +4695,10 @@ document.addEventListener('keydown',e=>{
 
 // ── Init ───────────────────────────────────────────────────────────
 pan.x=(window.innerWidth-240)/2;pan.y=window.innerHeight/2;
-// Pre-load sample data so canvas is never blank before login.
-// scheduleSave has a guard: if(!sb) return — safe to call before login.
-loadSample();
+// Canvas starts empty. The real diagram is loaded from Supabase after login via
+// loadFromSupabase(). There is deliberately no sample/example pre-fill — a prior
+// version pre-loaded example data here and a delayed save could overwrite the
+// real cloud diagram before the DB load finished. Removed entirely.
 updAll();
 
 // ══════════════════════════════════════════════════════════════════
@@ -5412,7 +4790,11 @@ async function loadFromSupabase(){
     const{data,error}=await sb.from('diagrams').select('data').eq('id',DOC_ID).single();
     if(error&&error.code==='PGRST116'){
       await sb.from('diagrams').insert({id:DOC_ID,data:{nodes:[],edges:[]}});
-      setTimeout(loadSample,120);setSyncBadge('saved','New diagram created');return;
+      // Brand-new doc — start empty. No sample is loaded. lastSavedHash matches the
+      // empty row we just inserted so the first real edit saves cleanly.
+      nodes=[];edges=[];nextId=1;
+      lastSavedHash=JSON.stringify({nodes:[],edges:[]});
+      updAll();setSyncBadge('saved','New empty diagram');return;
     }
     if(error)throw error;
     if(data&&data.data&&data.data.nodes&&data.data.nodes.length>0){
@@ -5453,7 +4835,12 @@ async function loadFromSupabase(){
         lastSavedHash=JSON.stringify({nodes,edges});
         setSyncBadge('saved','Loaded');
       }
-    }else{setTimeout(loadSample,120);setSyncBadge('saved','New diagram');}
+    }else{
+      // Row exists but holds no nodes — treat as an empty diagram. No sample load.
+      nodes=[];edges=[];nextId=1;
+      lastSavedHash=JSON.stringify({nodes:(data&&data.data&&data.data.nodes)||[],edges:(data&&data.data&&data.data.edges)||[]});
+      updAll();setSyncBadge('saved','Empty diagram');
+    }
   }catch(e){setSyncBadge('err','Load failed');console.error(e);}
 }
 
