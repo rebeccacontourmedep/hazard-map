@@ -96,6 +96,17 @@ body.view-matrix .minimap,body.view-controls .minimap{display:none;}
 #controls-detail input:focus,#controls-detail select:focus,#controls-detail textarea:focus{border-color:var(--accent);}
 #controls-detail .cd-btn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:4px 10px;border-radius:3px;cursor:pointer;width:auto;}
 tr.ctrl-row.cd-active{background:rgba(37,99,235,.08);}
+.cc-pill{display:inline-block;font-size:10px;padding:2px 7px;border-radius:4px;white-space:nowrap;background:var(--surface2);color:var(--text2);border:1px solid var(--border2);}
+#controls-table{table-layout:fixed;}
+#controls-table th{position:relative;overflow:hidden;text-overflow:ellipsis;}
+#controls-table td{overflow:hidden;text-overflow:ellipsis;vertical-align:top;}
+#controls-table .col-grip{position:absolute;top:0;right:0;width:7px;height:100%;cursor:col-resize;user-select:none;}
+#controls-table .col-grip:hover{background:rgba(37,99,235,.25);}
+#cat-modal .cat-row{display:flex;align-items:center;gap:6px;padding:4px 0;}
+#cat-modal .cat-row input{flex:1;font-size:12px;padding:4px 7px;border:1px solid var(--border2);border-radius:4px;outline:none;background:var(--surface);color:var(--text);}
+#cat-modal .cat-row input:focus{border-color:var(--accent);}
+#cat-modal .cat-del{border:1px solid rgba(220,38,38,.4);background:#fef2f2;color:#dc2626;font-size:11px;padding:4px 8px;border-radius:4px;cursor:pointer;}
+#cat-modal .cat-used{font-size:9.5px;color:var(--text3);font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
 
 /* Matrix view container — fills the same area as the canvas */
 .matrix-view{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--surface);}
@@ -545,6 +556,10 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
       <label class="mrf-label">Status
         <select id="controls-filter-status" class="mrf-select" onchange="onControlsFilterChange()"><option value="">All statuses</option></select>
       </label>
+      <label class="mrf-label">Category
+        <select id="controls-filter-category" class="mrf-select" onchange="onControlsFilterChange()"><option value="">All categories</option></select>
+      </label>
+      <button class="mrf-nw" id="controls-manage-cats" onclick="openCategoryManager()" title="Add, rename, or delete categories">⚙ Categories</button>
       <span class="mrf-label" style="gap:4px;">Sort
         <button class="mrf-nw" id="controls-sort-name" onclick="setControlsSort('name')" title="Alphabetical">A–Z</button>
         <button class="mrf-nw" id="controls-sort-usage" onclick="setControlsSort('usage')" title="Most-used first">Most used</button>
@@ -555,6 +570,7 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
     <div id="controls-body" style="flex:1;display:flex;overflow:hidden;min-height:0;">
       <div class="matrix-table-wrap" id="controls-table-wrap" style="flex:1;">
         <table class="matrix-table" id="controls-table">
+          <colgroup id="controls-colgroup"></colgroup>
           <thead id="controls-thead"></thead>
           <tbody id="controls-tbody"></tbody>
         </table>
@@ -562,6 +578,23 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
       <div id="controls-detail" style="display:none;width:360px;flex-shrink:0;border-left:1px solid var(--border);overflow-y:auto;background:var(--surface);"></div>
     </div>
     <datalist id="controls-owner-options"></datalist>
+  </div>
+
+  <!-- Category manager modal (simple add / rename / delete) -->
+  <div id="cat-modal" style="display:none;position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.32);align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.25);width:380px;max-width:92vw;max-height:80vh;overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text2)">Manage categories</span>
+        <button onclick="closeCategoryManager()" style="border:none;background:none;cursor:pointer;font-size:16px;color:var(--text3)">✕</button>
+      </div>
+      <div id="cat-modal-list" style="padding:8px 12px;overflow-y:auto;"></div>
+      <div style="padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:6px;">
+        <input id="cat-modal-new" type="text" placeholder="New category name…" autocomplete="off"
+          onkeydown="if(event.key==='Enter')addCategoryFromModal()"
+          style="flex:1;font-size:12px;padding:5px 8px;border:1px solid var(--border2);border-radius:4px;outline:none;">
+        <button onclick="addCategoryFromModal()" style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:5px 12px;border-radius:4px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;">Add</button>
+      </div>
+    </div>
   </div>
 
   <!-- Edge edits now live in the right-side edge-edit-panel (schema v2);
@@ -636,7 +669,7 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         <textarea id="ed-notes" rows="3" placeholder="REQ-XXXX, SOP refs, rationale, reviewer..."></textarea>
 
         <!-- Needs Work flag: marks a node for follow-up. Filterable. -->
-        <div class="nw-block" style="margin-top:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#fffbf2">
+        <div class="nw-block" id="ed-nw-block" style="margin-top:8px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:#fffbf2">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:#92400e;font-weight:600">
             <input type="checkbox" id="ed-needswork" onchange="onNeedsWorkChange()" style="width:auto;margin:0;cursor:pointer">
             <span>⚑ Flag as Needs Work</span>
@@ -660,6 +693,19 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         </div>
 
         <div id="control-fields" style="display:none">
+          <div id="ed-ctrl-id" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);margin:2px 0 6px"></div>
+          <div class="two-col" style="margin-bottom:4px">
+            <div>
+              <label class="ep-lbl">Owner</label>
+              <input id="ed-owner" list="controls-owner-options" placeholder="Unassigned" onchange="onControlMetaChange()">
+            </div>
+            <div>
+              <label class="ep-lbl">Status</label>
+              <select id="ed-status" onchange="onControlMetaChange()"></select>
+            </div>
+          </div>
+          <label class="ep-lbl">Category</label>
+          <select id="ed-category" onchange="onControlMetaChange()" style="margin-bottom:6px"></select>
           <label class="ep-lbl">Default Verification of Effectiveness <span style="font-weight:400;text-transform:none;letter-spacing:0">(used unless overridden per attachment)</span></label>
           <textarea id="ed-verification" rows="2" placeholder="ID-XXXX Verification Plan, test report ref..."></textarea>
           <div id="ctrl-attached-display" style="margin-top:8px"></div>
@@ -2227,6 +2273,9 @@ function showEdit(n){
   // Post-control + assessment fields moved to the Situation→Harm edge edit panel (schema v2)
   document.getElementById('harm-assessment-field').style.display='none';
   document.getElementById('control-fields').style.display=isCtrl?'block':'none';
+  // Needs Work isn't part of the control record — status covers control lifecycle.
+  const nwBlock=document.getElementById('ed-nw-block');
+  if(nwBlock)nwBlock.style.display=isCtrl?'none':'block';
   if(isH){
     document.getElementById('ed-sev').value=n.severity||'';
     // Per-path residual summary: each inbound edge shows occurrence + residual zone
@@ -2255,6 +2304,7 @@ function showEdit(n){
   if(isSit){document.getElementById('ed-sequence').value=n.sequence||'';}
   if(isCtrl){
     document.getElementById('ed-verification').value=n.verification||'';
+    populateControlMeta(n);
     // Show which Situation→Harm edges this control is attached to
     const uses=edgesUsingControl(n.id);
     const usesEl=document.getElementById('ctrl-attached-display');
@@ -2605,6 +2655,9 @@ function commitPendingEdits(){
   if(selected.type==='control'){
     const ve=document.getElementById('ed-verification');
     if(ve)selected.verification=ve.value||'';
+    const o=document.getElementById('ed-owner');if(o)selected.owner=o.value||'';
+    const s=document.getElementById('ed-status');if(s)selected.status=s.value||'';
+    const ca=document.getElementById('ed-category');if(ca)selected.category=ca.value||'';
   }
 }
 
@@ -3290,6 +3343,67 @@ function statusPill(s){
   return `<span class="cs-pill ${cls}">${_mitEsc(s)}</span>`;
 }
 
+// ── Categories ──────────────────────────────────────────────────────
+// Default set; the live list is stored in localStorage (seeded with these on
+// first run) and merged with any category actually assigned to a control (those
+// live on the control node and sync via the normal save payload).
+let controlsFilterCategory='';
+const CONTROL_CATEGORIES_DEFAULT=['CIP','IFU','Test','Labeling','Drawing Inspection'];
+const CAT_STORE_KEY='atlas360.categories';
+function loadStoredCategories(){
+  try{const s=localStorage.getItem(CAT_STORE_KEY);if(s){const a=JSON.parse(s);if(Array.isArray(a))return a;}}catch(e){}
+  saveStoredCategories(CONTROL_CATEGORIES_DEFAULT.slice());
+  return CONTROL_CATEGORIES_DEFAULT.slice();
+}
+function saveStoredCategories(arr){try{localStorage.setItem(CAT_STORE_KEY,JSON.stringify(arr));}catch(e){}}
+let storedCategories=loadStoredCategories();
+// Full option list = stored order + any category present on a control but not stored.
+function categoryList(){
+  const present=new Set(nodes.filter(n=>n.type==='control').map(c=>(c.category||'').trim()).filter(Boolean));
+  const out=storedCategories.slice();
+  present.forEach(c=>{if(!out.includes(c))out.push(c);});
+  return out;
+}
+function categoryCount(cat){return nodes.filter(n=>n.type==='control'&&(n.category||'').trim()===cat).length;}
+function categoryPill(c){
+  if(!(c||'').trim())return '<span class="cs-pill cs-unset">—</span>';
+  return `<span class="cc-pill">${_mitEsc(c)}</span>`;
+}
+
+// ── Resizable column widths for the Controls table ──────────────────
+const CONTROLS_COLS=[
+  {key:'idx',     label:'#',                            def:44},
+  {key:'control', label:'Control / Mitigation',         def:280},
+  {key:'owner',   label:'Owner',                        def:128},
+  {key:'status',  label:'Status',                       def:118},
+  {key:'category',label:'Category',                     def:120},
+  {key:'verif',   label:'Verification of Effectiveness',def:220},
+  {key:'used',    label:'Used',                         def:88},
+  {key:'actions', label:'Actions',                      def:116},
+];
+const COLW_KEY='atlas360.controlsColW';
+let controlsColW=(function(){
+  const o={};CONTROLS_COLS.forEach(c=>o[c.key]=c.def);
+  try{const s=localStorage.getItem(COLW_KEY);if(s){const p=JSON.parse(s);if(p&&typeof p==='object')Object.keys(o).forEach(k=>{if(p[k])o[k]=p[k];});}}catch(e){}
+  return o;
+})();
+function persistControlsColW(){try{localStorage.setItem(COLW_KEY,JSON.stringify(controlsColW));}catch(e){}}
+function controlsTableTotalW(){return CONTROLS_COLS.reduce((a,c)=>a+(controlsColW[c.key]||c.def),0);}
+function startColResize(e,key){
+  e.preventDefault();e.stopPropagation();
+  const startX=e.clientX, startW=controlsColW[key]||60;
+  const col=document.querySelector(`#controls-colgroup col[data-col="${key}"]`);
+  const tbl=document.getElementById('controls-table');
+  const mv=(ev)=>{
+    const w=Math.max(50,startW+(ev.clientX-startX));
+    controlsColW[key]=w;
+    if(col)col.style.width=w+'px';
+    if(tbl)tbl.style.width=controlsTableTotalW()+'px';
+  };
+  const up=()=>{document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);persistControlsColW();};
+  document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+}
+
 // Distinct situations a control reaches (matches what "Where used" will show).
 function controlSituationCount(controlId){
   const sits=new Set();
@@ -3313,6 +3427,10 @@ function controlsTableRows(){
   if(controlsFilterStatus){
     if(controlsFilterStatus===CONTROLS_UNASSIGNED)arr=arr.filter(r=>!(r.c.status||'').trim());
     else arr=arr.filter(r=>(r.c.status||'')===controlsFilterStatus);
+  }
+  if(controlsFilterCategory){
+    if(controlsFilterCategory===CONTROLS_UNASSIGNED)arr=arr.filter(r=>!(r.c.category||'').trim());
+    else arr=arr.filter(r=>(r.c.category||'')===controlsFilterCategory);
   }
   if(controlsTableSort==='usage')
     arr.sort((a,b)=>b.sits-a.sits||(a.c.label||'').localeCompare(b.c.label||''));
@@ -3350,8 +3468,20 @@ function renderControlsFilters(){
   }
   const dl=document.getElementById('controls-owner-options');
   if(dl)dl.innerHTML=owners.map(o=>`<option value="${_mitEsc(o)}"></option>`).join('');
+  // Category filter dropdown (defaults + any in-use)
+  const cSel=document.getElementById('controls-filter-category');
+  if(cSel){
+    const cats=categoryList();
+    const hasUnCat=ctrls.some(c=>!(c.category||'').trim());
+    cSel.innerHTML='<option value="">All categories</option>'+
+      (hasUnCat?`<option value="${CONTROLS_UNASSIGNED}">Unassigned</option>`:'')+
+      cats.map(c=>`<option value="${_mitEsc(c)}">${_mitEsc(c)}</option>`).join('');
+    if(![...cSel.options].some(o=>o.value===controlsFilterCategory))controlsFilterCategory='';
+    cSel.value=controlsFilterCategory;
+    cSel.classList.toggle('active',!!controlsFilterCategory);
+  }
   const clr=document.getElementById('controls-filter-clear');
-  if(clr)clr.style.display=(controlsFilterOwner||controlsFilterStatus||controlsTableSearch)?'':'none';
+  if(clr)clr.style.display=(controlsFilterOwner||controlsFilterStatus||controlsFilterCategory||controlsTableSearch)?'':'none';
 }
 
 function renderControlsTable(){
@@ -3363,23 +3493,23 @@ function renderControlsTable(){
   if(bn)bn.classList.toggle('active',controlsTableSort==='name');
   if(bu)bu.classList.toggle('active',controlsTableSort==='usage');
 
-  thead.innerHTML=`<tr>
-    <th style="width:40px">#</th>
-    <th>Control / Mitigation</th>
-    <th style="width:132px">Owner</th>
-    <th style="width:120px">Status</th>
-    <th style="width:84px">Used</th>
-    <th style="width:118px">Actions</th>
-  </tr>`;
+  // Column widths (resizable) — render colgroup + size the table to the column sum.
+  const cg=document.getElementById('controls-colgroup');
+  if(cg)cg.innerHTML=CONTROLS_COLS.map(c=>`<col data-col="${c.key}" style="width:${controlsColW[c.key]||c.def}px">`).join('');
+  const tbl=document.getElementById('controls-table');
+  if(tbl)tbl.style.width=controlsTableTotalW()+'px';
+
+  thead.innerHTML='<tr>'+CONTROLS_COLS.map(c=>
+    `<th>${c.label}<div class="col-grip" onmousedown="startColResize(event,'${c.key}')"></div></th>`).join('')+'</tr>';
 
   const rows=controlsTableRows();
   const total=nodes.filter(n=>n.type==='control').length;
   const cnt=document.getElementById('controls-count');
   if(cnt)cnt.textContent=`${rows.length} of ${total} control${total===1?'':'s'}`;
 
-  const filtered=!!(controlsTableSearch||controlsFilterOwner||controlsFilterStatus);
+  const filtered=!!(controlsTableSearch||controlsFilterOwner||controlsFilterStatus||controlsFilterCategory);
   if(!rows.length){
-    tbody.innerHTML=`<tr><td colspan="6"><div class="matrix-empty-state"><b>No controls${filtered?' match the filters':''}</b>${filtered?'Try a different search, owner, or status — or Clear.':'Add risk controls in the Graph view, then they appear here.'}</div></td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="${CONTROLS_COLS.length}"><div class="matrix-empty-state"><b>No controls${filtered?' match the filters':''}</b>${filtered?'Try a different search, owner, status, or category — or Clear.':'Add risk controls in the Graph view, then they appear here.'}</div></td></tr>`;
     return;
   }
 
@@ -3388,10 +3518,8 @@ function renderControlsTable(){
     const c=r.c;
     const active=(controlsDetailId===c.id)?' cd-active':'';
     const label=_mitEsc(c.label||'(untitled control)');
-    const flag=c.needsWork?` <span class="nw-flag" title="${_mitEsc(c.needsWorkNote||'Flagged as Needs Work')}">\u2691</span>`:'';
-    const owner=(c.owner||'').trim()
-      ? _mitEsc(c.owner)
-      : '<span style="color:var(--text3);font-style:italic;">Unassigned</span>';
+    const owner=(c.owner||'').trim()?_mitEsc(c.owner):'<span style="color:var(--text3);font-style:italic;">Unassigned</span>';
+    const verif=(c.verification||'').trim()?_mitEsc(c.verification):'<span style="color:var(--text3)">—</span>';
     const used=r.sits
       ? `<span title="On ${r.edges} Situation\u2192Harm edge${r.edges===1?'':'s'}">${r.sits} situation${r.sits===1?'':'s'}</span>`
       : `<span style="color:var(--text3);font-style:italic;">unused</span>`;
@@ -3400,9 +3528,11 @@ function renderControlsTable(){
       : `<button disabled title="Not attached to any sequence yet" style="${aBtn}border:1px solid var(--border2);background:var(--surface);color:var(--text3);opacity:.5;cursor:default;">Where used \u2192</button>`;
     return `<tr class="ctrl-row${active}" style="cursor:pointer" title="Click for full detail" onclick="openControlDetail(${c.id})">
       <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace">${String(i+1).padStart(3,'0')}</td>
-      <td>${label}${flag}</td>
+      <td>${label}</td>
       <td>${owner}</td>
       <td>${statusPill(c.status)}</td>
+      <td>${categoryPill(c.category)}</td>
+      <td style="font-size:11px;color:var(--text2)">${verif}</td>
       <td>${used}</td>
       <td>${whereBtn}</td>
     </tr>`;
@@ -3414,12 +3544,14 @@ function setControlsSort(s){controlsTableSort=s;renderControlsTable();}
 function onControlsFilterChange(){
   const o=document.getElementById('controls-filter-owner');
   const s=document.getElementById('controls-filter-status');
+  const cc=document.getElementById('controls-filter-category');
   controlsFilterOwner=o?o.value:'';
   controlsFilterStatus=s?s.value:'';
+  controlsFilterCategory=cc?cc.value:'';
   renderControlsTable();
 }
 function clearControlsFilters(){
-  controlsFilterOwner='';controlsFilterStatus='';controlsTableSearch='';
+  controlsFilterOwner='';controlsFilterStatus='';controlsFilterCategory='';controlsTableSearch='';
   const si=document.getElementById('controls-search');if(si)si.value='';
   renderControlsTable();
 }
@@ -3431,12 +3563,121 @@ function controlWhereUsed(controlId){
   setView('matrix');
 }
 
-// Jump to the Graph view with this control selected and its edit panel open.
+// Jump to the Graph view with this control selected, visible, and centered.
 function controlEditFromTable(controlId){
   const n=nodes.find(x=>x.id===controlId&&x.type==='control');
   if(!n)return;
+  // Clear any active view filters so the node isn't hidden by the visibility gate.
+  if(mitigationFilterSel.size){mitigationFilterSel.clear();mitigationFilterIds=null;updateMitigationFilterBtn();}
+  if(focusSet){clearFocus();}
   setView('graph');
   selectNode(n);
+  centerOnNode(n);
+}
+
+// Pan (no zoom change) so a node sits at the viewport centre.
+function centerOnNode(n){
+  if(!n)return;
+  const cv=document.getElementById('canvas');
+  if(!cv)return;
+  pan.x=cv.offsetWidth/2 - n.x*zoom;
+  pan.y=cv.offsetHeight/2 - n.y*zoom;
+  draw();
+}
+
+// ── Graph/Matrix control panel: owner/status/category live commit ───
+function refreshOwnerDatalist(){
+  const dl=document.getElementById('controls-owner-options');
+  if(!dl)return;
+  const owners=[...new Set(nodes.filter(n=>n.type==='control').map(c=>(c.owner||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  dl.innerHTML=owners.map(o=>`<option value="${_mitEsc(o)}"></option>`).join('');
+}
+function _optList(values,cur){
+  return values.map(x=>`<option value="${_mitEsc(x)}" ${cur===String(x).trim()?'selected':''}>${x?_mitEsc(x):'\u2014 Unset \u2014'}</option>`).join('');
+}
+// Fill the control-only fields in the graph edit panel (also used by Matrix clicks).
+function populateControlMeta(n){
+  if(!n)return;
+  const idEl=document.getElementById('ed-ctrl-id');if(idEl)idEl.textContent='Control ID: '+n.id;
+  const o=document.getElementById('ed-owner');if(o)o.value=n.owner||'';
+  refreshOwnerDatalist();
+  const sCur=(n.status||'').trim();
+  const s=document.getElementById('ed-status');
+  if(s)s.innerHTML=_optList(['',...CONTROL_STATUSES,...((sCur&&!CONTROL_STATUSES.includes(sCur))?[sCur]:[])],sCur);
+  const cCur=(n.category||'').trim();const cats=categoryList();
+  const c=document.getElementById('ed-category');
+  if(c)c.innerHTML=_optList(['',...cats,...((cCur&&!cats.includes(cCur))?[cCur]:[])],cCur);
+}
+function onControlMetaChange(){
+  if(!selected||selected.type!=='control')return;
+  const o=document.getElementById('ed-owner'),s=document.getElementById('ed-status'),c=document.getElementById('ed-category');
+  const no=o?o.value:(selected.owner||''),ns=s?s.value:(selected.status||''),nc=c?c.value:(selected.category||'');
+  if((selected.owner||'')===no&&(selected.status||'')===ns&&(selected.category||'')===nc)return;
+  pushUndo();
+  selected.owner=no;selected.status=ns;selected.category=nc;
+  updList();draw();
+  if(activeView==='matrix')renderMatrix();
+  flushSave(`Updated control meta on "${(selected.label||'').substring(0,40)}"`);
+}
+
+// ── Category manager (add / rename / delete) ────────────────────────
+function openCategoryManager(){
+  const m=document.getElementById('cat-modal');if(!m)return;
+  m.style.display='flex';renderCategoryManager();
+  const ni=document.getElementById('cat-modal-new');if(ni){ni.value='';setTimeout(()=>ni.focus(),0);}
+}
+function closeCategoryManager(){const m=document.getElementById('cat-modal');if(m)m.style.display='none';}
+function renderCategoryManager(){
+  const list=document.getElementById('cat-modal-list');if(!list)return;
+  const cats=categoryList();
+  if(!cats.length){list.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic;padding:6px 0">No categories yet. Add one below.</div>';return;}
+  list.innerHTML=cats.map((cat,i)=>{
+    const used=categoryCount(cat);
+    return `<div class="cat-row">
+      <input value="${_mitEsc(cat)}" onchange="renameCategoryAt(${i},this.value)" title="Edit name, then Tab/Enter to rename">
+      <span class="cat-used">${used} used</span>
+      <button class="cat-del" onclick="deleteCategoryAt(${i})" title="Delete category">\u2715</button>
+    </div>`;
+  }).join('');
+}
+function _afterCategoryChange(){
+  renderCategoryManager();
+  if(activeView==='controls')renderControlsTable();
+  if(controlsDetailId)renderControlDetail();
+  const ep=document.getElementById('edit-panel');
+  if(selected&&selected.type==='control'&&ep&&ep.style.display!=='none')populateControlMeta(selected);
+}
+function renameCategoryAt(i,newName){const cats=categoryList();renameCategory(cats[i],newName);}
+function deleteCategoryAt(i){const cats=categoryList();deleteCategory(cats[i]);}
+function renameCategory(oldName,newName){
+  oldName=(oldName||'').trim();newName=(newName||'').trim();
+  if(!oldName||!newName||oldName===newName){_afterCategoryChange();return;}
+  const idx=storedCategories.indexOf(oldName);
+  if(idx>=0){if(storedCategories.includes(newName))storedCategories.splice(idx,1);else storedCategories[idx]=newName;}
+  else if(!storedCategories.includes(newName))storedCategories.push(newName);
+  saveStoredCategories(storedCategories);
+  const affected=nodes.filter(n=>n.type==='control'&&(n.category||'').trim()===oldName);
+  if(affected.length){pushUndo();affected.forEach(n=>n.category=newName);draw();updList();if(activeView==='matrix')renderMatrix();flushSave(`Renamed category "${oldName}" → "${newName}"`);}
+  _afterCategoryChange();
+}
+function deleteCategory(name){
+  name=(name||'').trim();if(!name)return;
+  const used=categoryCount(name);
+  if(used&&!confirm(`"${name}" is assigned to ${used} control${used===1?'':'s'}. Delete it and clear that category from them?`))return;
+  const idx=storedCategories.indexOf(name);
+  if(idx>=0){storedCategories.splice(idx,1);saveStoredCategories(storedCategories);}
+  const affected=nodes.filter(n=>n.type==='control'&&(n.category||'').trim()===name);
+  if(affected.length){pushUndo();affected.forEach(n=>n.category='');draw();updList();if(activeView==='matrix')renderMatrix();flushSave(`Deleted category "${name}"`);}
+  _afterCategoryChange();
+}
+function addCategoryFromModal(){
+  const ni=document.getElementById('cat-modal-new');
+  const name=(ni&&ni.value||'').trim();
+  if(!name)return;
+  if(!storedCategories.includes(name))storedCategories.push(name);
+  saveStoredCategories(storedCategories);
+  if(ni)ni.value='';
+  _afterCategoryChange();
 }
 
 // ── Control detail drawer ───────────────────────────────────────────
@@ -3463,9 +3704,12 @@ function renderControlDetail(){
   const sits=controlSituationCount(c.id),edg=mitigationUseCount(c.id);
   const cur=(c.status||'').trim();
   const statusOpts=['',...CONTROL_STATUSES,...((cur&&!CONTROL_STATUSES.includes(cur))?[cur]:[])];
+  const curCat=(c.category||'').trim();
+  const cats=categoryList();
+  const catOpts=['',...cats,...((curCat&&!cats.includes(curCat))?[curCat]:[])];
   panel.innerHTML=`
     <div class="cd-sec" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-      <span class="cd-lbl" style="margin:0">Control detail</span>
+      <span class="cd-lbl" style="margin:0">Control detail · <span style="color:var(--text2)">ID ${c.id}</span></span>
       <button onclick="closeControlDetail()" title="Close" style="border:none;background:none;cursor:pointer;font-size:15px;line-height:1;color:var(--text3);width:auto;padding:0">\u2715</button>
     </div>
     <div class="cd-sec">
@@ -3485,18 +3729,18 @@ function renderControlDetail(){
       </div>
     </div>
     <div class="cd-sec">
+      <label class="cd-lbl">Category <span style="text-transform:none;letter-spacing:0;font-weight:400"><a href="javascript:void(0)" onclick="openCategoryManager()" style="color:var(--accent);text-decoration:none">manage</a></span></label>
+      <select onchange="commitControlField(${c.id},'category',this.value)">
+        ${catOpts.map(cc=>`<option value="${_mitEsc(cc)}" ${curCat===cc.trim()?'selected':''}>${cc?_mitEsc(cc):'\u2014 Unset \u2014'}</option>`).join('')}
+      </select>
+    </div>
+    <div class="cd-sec">
       <label class="cd-lbl">Verification of Effectiveness</label>
       <textarea rows="2" placeholder="ID-XXXX Verification Plan, test report ref…" onchange="commitControlField(${c.id},'verification',this.value)">${_mitEsc(c.verification||'')}</textarea>
     </div>
     <div class="cd-sec">
       <label class="cd-lbl">Notes</label>
       <textarea rows="3" placeholder="REQ-XXXX, SOP refs, rationale, reviewer…" onchange="commitControlField(${c.id},'notes',this.value)">${_mitEsc(c.notes||'')}</textarea>
-    </div>
-    <div class="cd-sec">
-      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;">
-        <input type="checkbox" ${c.needsWork?'checked':''} onchange="commitControlNeedsWork(${c.id},this.checked)" style="width:auto;cursor:pointer"> Needs Work
-      </label>
-      <textarea rows="2" placeholder="What needs doing? (optional)" onchange="commitControlField(${c.id},'needsWorkNote',this.value)" style="margin-top:5px;display:${c.needsWork?'block':'none'}">${_mitEsc(c.needsWorkNote||'')}</textarea>
     </div>
     <div class="cd-sec" style="display:flex;flex-direction:column;gap:7px;">
       <span style="font-size:11px;color:var(--text2)">Used in <b>${sits}</b> situation${sits===1?'':'s'} \u00b7 ${edg} edge${edg===1?'':'s'}</span>
