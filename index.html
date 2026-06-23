@@ -79,6 +79,8 @@ body.editing #search-wrap{display:none;}
 body.editing .edit-panel{max-height:none;flex:1;min-height:0;}
 /* The minimap floats over .main and is only meaningful for the canvas. Hide in matrix view. */
 body.view-matrix .minimap,body.view-controls .minimap{display:none;}
+/* Controls view has its own detail drawer; the node/tabs panel is redundant there. */
+body.view-controls .panel{display:none;}
 /* Controls view — status pills + detail drawer */
 .cs-pill{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap;}
 .cs-unset{color:var(--text3);font-style:italic;background:none;padding:0;}
