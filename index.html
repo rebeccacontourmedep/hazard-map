@@ -562,6 +562,9 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         <select id="controls-filter-category" class="mrf-select" onchange="onControlsFilterChange()"><option value="">All categories</option></select>
       </label>
       <button class="mrf-nw" id="controls-manage-cats" onclick="openCategoryManager()" title="Add, rename, or delete categories">⚙ Categories</button>
+      <label class="mrf-label" style="cursor:pointer" title="Hide controls whose status is Obsolete">
+        <input type="checkbox" id="controls-hide-obsolete" onchange="onControlsFilterChange()" style="width:auto;margin:0;cursor:pointer"> Hide Obsolete
+      </label>
       <span class="mrf-label" style="gap:4px;">Sort
         <button class="mrf-nw" id="controls-sort-name" onclick="setControlsSort('name')" title="Alphabetical">A–Z</button>
         <button class="mrf-nw" id="controls-sort-usage" onclick="setControlsSort('usage')" title="Most-used first">Most used</button>
@@ -3350,6 +3353,7 @@ function statusPill(s){
 // first run) and merged with any category actually assigned to a control (those
 // live on the control node and sync via the normal save payload).
 let controlsFilterCategory='';
+let controlsHideObsolete=false;
 const CONTROL_CATEGORIES_DEFAULT=['CIP','IFU','Test','Labeling','Drawing Inspection'];
 const CAT_STORE_KEY='atlas360.categories';
 function loadStoredCategories(){
@@ -3432,8 +3436,8 @@ function controlsTableRows(){
   }
   if(controlsFilterCategory){
     if(controlsFilterCategory===CONTROLS_UNASSIGNED)arr=arr.filter(r=>!(r.c.category||'').trim());
-    else arr=arr.filter(r=>(r.c.category||'')===controlsFilterCategory);
-  }
+    else arr=arr.filter(r=>(r.c.category||'')===controlsFilterCategory);  }
+  if(controlsHideObsolete)arr=arr.filter(r=>(r.c.status||'').trim().toLowerCase()!=='obsolete');
   if(controlsTableSort==='usage')
     arr.sort((a,b)=>b.sits-a.sits||(a.c.label||'').localeCompare(b.c.label||''));
   else
@@ -3482,8 +3486,10 @@ function renderControlsFilters(){
     cSel.value=controlsFilterCategory;
     cSel.classList.toggle('active',!!controlsFilterCategory);
   }
+  const ho=document.getElementById('controls-hide-obsolete');
+  if(ho)ho.checked=controlsHideObsolete;
   const clr=document.getElementById('controls-filter-clear');
-  if(clr)clr.style.display=(controlsFilterOwner||controlsFilterStatus||controlsFilterCategory||controlsTableSearch)?'':'none';
+  if(clr)clr.style.display=(controlsFilterOwner||controlsFilterStatus||controlsFilterCategory||controlsTableSearch||controlsHideObsolete)?'':'none';
 }
 
 function renderControlsTable(){
@@ -3547,14 +3553,17 @@ function onControlsFilterChange(){
   const o=document.getElementById('controls-filter-owner');
   const s=document.getElementById('controls-filter-status');
   const cc=document.getElementById('controls-filter-category');
+  const ho=document.getElementById('controls-hide-obsolete');
   controlsFilterOwner=o?o.value:'';
   controlsFilterStatus=s?s.value:'';
   controlsFilterCategory=cc?cc.value:'';
+  controlsHideObsolete=ho?ho.checked:false;
   renderControlsTable();
 }
 function clearControlsFilters(){
-  controlsFilterOwner='';controlsFilterStatus='';controlsFilterCategory='';controlsTableSearch='';
+  controlsFilterOwner='';controlsFilterStatus='';controlsFilterCategory='';controlsTableSearch='';controlsHideObsolete=false;
   const si=document.getElementById('controls-search');if(si)si.value='';
+  const ho=document.getElementById('controls-hide-obsolete');if(ho)ho.checked=false;
   renderControlsTable();
 }
 
