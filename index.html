@@ -2,6 +2,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -65,8 +66,8 @@ canvas{flex:1;display:block;cursor:default;min-width:0;}
 .view-toggle .view-btn:hover{background:var(--hover);}
 .view-toggle .view-btn.active{background:var(--accent);color:#fff;}
 /* Hide canvas-only toolbar buttons + the filter bar when in matrix view */
-body.view-matrix .graph-only{display:none !important;}
-body.view-matrix .filter-bar{display:none;}
+body.view-matrix .graph-only,body.view-controls .graph-only{display:none !important;}
+body.view-matrix .filter-bar,body.view-controls .filter-bar{display:none;}
 /* When the edit panel (node or edge) is open, hide the tab content + search box
    so the edit form gets the full panel height. Tab buttons remain visible at the
    top so the user can switch contexts (clicking a tab closes the edit panel). */
@@ -77,7 +78,24 @@ body.editing #search-wrap{display:none;}
    even though the tab-body sibling is hidden — that's the source of cut-off content. */
 body.editing .edit-panel{max-height:none;flex:1;min-height:0;}
 /* The minimap floats over .main and is only meaningful for the canvas. Hide in matrix view. */
-body.view-matrix .minimap{display:none;}
+body.view-matrix .minimap,body.view-controls .minimap{display:none;}
+/* Controls view — status pills + detail drawer */
+.cs-pill{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap;}
+.cs-unset{color:var(--text3);font-style:italic;background:none;padding:0;}
+.cs-proposed{background:#f1f5f9;color:#475569;}
+.cs-review{background:#fef3c7;color:#b45309;}
+.cs-approved{background:#dbeafe;color:#1d4ed8;}
+.cs-implemented{background:#ccfbf1;color:#0f766e;}
+.cs-verified{background:#dcfce7;color:#15803d;}
+.cs-obsolete{background:#f3f4f6;color:#9ca3af;text-decoration:line-through;}
+.cs-custom{background:var(--surface2);color:var(--text2);}
+#controls-detail .cd-sec{padding:10px 12px;border-bottom:1px solid var(--border);}
+#controls-detail .cd-lbl{font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text3);margin-bottom:4px;display:block;}
+#controls-detail input,#controls-detail select,#controls-detail textarea{width:100%;box-sizing:border-box;font-family:'IBM Plex Sans',sans-serif;font-size:12px;padding:5px 7px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);color:var(--text);outline:none;}
+#controls-detail textarea{resize:vertical;}
+#controls-detail input:focus,#controls-detail select:focus,#controls-detail textarea:focus{border-color:var(--accent);}
+#controls-detail .cd-btn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:4px 10px;border-radius:3px;cursor:pointer;width:auto;}
+tr.ctrl-row.cd-active{background:rgba(37,99,235,.08);}
 
 /* Matrix view container — fills the same area as the canvas */
 .matrix-view{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:var(--surface);}
@@ -420,6 +438,7 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
   <span class="view-toggle">
     <button class="btn view-btn active" id="view-graph" onclick="setView('graph')" title="Diagram view (default)">Graph</button>
     <button class="btn view-btn"        id="view-matrix" onclick="setView('matrix')" title="Tabular view — mirrors the Excel export">Matrix</button>
+    <button class="btn view-btn"        id="view-controls" onclick="setView('controls')" title="Master working list of every risk control / mitigation">Controls</button>
   </span>
   <div class="sep"></div>
   <button class="btn btn-h"    onclick="setAddMode('hazard')">+ Hazard</button>
@@ -464,6 +483,10 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
     <button class="fbtn" id="harm-filter-btn" onclick="toggleHarmFilterMenu(event)" title="Pick a specific Harm to focus on" style="color:#1a7a4a;border-color:rgba(26,122,74,.4);background:#f2faf6;">▼ Focus on Harm</button>
     <div id="harm-filter-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:1000;max-height:340px;overflow-y:auto;min-width:280px;padding:4px;"></div>
   </div>
+  <div style="position:relative;display:inline-block;">
+    <button class="fbtn" id="mitigation-filter-btn" onclick="toggleMitigationMenu(event)" title="Show only sequences whose situation uses the selected mitigation(s)" style="color:#1d4ed8;border-color:rgba(37,99,235,.45);background:#eff6ff;">▼ Filter by Mitigation</button>
+    <div id="mitigation-filter-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:var(--surface);border:1px solid var(--border2);border-radius:5px;box-shadow:0 6px 18px rgba(0,0,0,.16);z-index:1000;width:320px;padding:0;overflow:hidden;"></div>
+  </div>
   <div class="sep"></div>
   <div class="focus-banner" id="focus-banner">
     <span id="focus-label">Focused on: —</span>
@@ -491,6 +514,7 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         </select>
       </label>
       <button class="mrf-nw" id="matrix-filter-nw" onclick="toggleMatrixNeedsWork()" title="Show only rows whose chain (hazard / situation / harm / control) has a Needs Work flag">⚑ Needs Work only</button>
+      <span id="matrix-filter-mit" title="Mitigation filter is set in Graph view" style="display:none;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 5px 3px 9px;border-radius:3px;border:1px solid rgba(37,99,235,.5);background:#eff6ff;color:#1d4ed8;"></span>
       <button class="mrf-clear" id="matrix-filter-clear" onclick="clearMatrixRowFilters()" style="display:none">Clear filters</button>
       <span class="mrf-count" id="matrix-filter-count"></span>
     </div>
@@ -504,6 +528,40 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         <tbody id="matrix-tbody"></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- Controls view: a flat master working list of every risk control / mitigation,
+       independent of which sequence uses it. "Where used →" hands off to the Matrix
+       view filtered to that one control. Hidden until setView('controls'). -->
+  <div class="matrix-view" id="controls-view" style="display:none">
+    <div class="matrix-row-filter" id="controls-toolbar">
+      <span class="filter-bar-label">Controls:</span>
+      <input id="controls-search" type="text" placeholder="Search controls…" autocomplete="off"
+        oninput="onControlsSearch(this.value)"
+        style="font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;padding:3px 7px;border-radius:4px;border:1px solid var(--border2);background:var(--surface);color:var(--text);outline:none;min-width:170px;">
+      <label class="mrf-label">Owner
+        <select id="controls-filter-owner" class="mrf-select" onchange="onControlsFilterChange()"><option value="">All owners</option></select>
+      </label>
+      <label class="mrf-label">Status
+        <select id="controls-filter-status" class="mrf-select" onchange="onControlsFilterChange()"><option value="">All statuses</option></select>
+      </label>
+      <span class="mrf-label" style="gap:4px;">Sort
+        <button class="mrf-nw" id="controls-sort-name" onclick="setControlsSort('name')" title="Alphabetical">A–Z</button>
+        <button class="mrf-nw" id="controls-sort-usage" onclick="setControlsSort('usage')" title="Most-used first">Most used</button>
+      </span>
+      <button class="mrf-clear" id="controls-filter-clear" onclick="clearControlsFilters()" style="display:none">Clear</button>
+      <span class="mrf-count" id="controls-count"></span>
+    </div>
+    <div id="controls-body" style="flex:1;display:flex;overflow:hidden;min-height:0;">
+      <div class="matrix-table-wrap" id="controls-table-wrap" style="flex:1;">
+        <table class="matrix-table" id="controls-table">
+          <thead id="controls-thead"></thead>
+          <tbody id="controls-tbody"></tbody>
+        </table>
+      </div>
+      <div id="controls-detail" style="display:none;width:360px;flex-shrink:0;border-left:1px solid var(--border);overflow-y:auto;background:var(--surface);"></div>
+    </div>
+    <datalist id="controls-owner-options"></datalist>
   </div>
 
   <!-- Edge edits now live in the right-side edge-edit-panel (schema v2);
@@ -844,6 +902,13 @@ let showPOccLabels=false;
 // Focus mode: set of node ids to show (null = all)
 let focusSet=null;
 
+// ── Mitigation filter state ────────────────────────────────────────
+// Show only sequences whose SITUATION carries one of the selected mitigations.
+// View-only: reads nodes/edges, never mutates or saves. Composes with focusSet.
+let mitigationFilterSel=new Set();   // selected control node ids (multi-select, OR)
+let mitigationFilterIds=null;        // computed visible-id set (null = filter off)
+let mitigationFilterSearch='';       // current search-box text
+
 // Undo stack
 const UNDO_LIMIT=40;
 let undoStack=[];
@@ -902,6 +967,7 @@ function harmHasControl(harmNode){
 // ── Visibility ─────────────────────────────────────────────────────
 function isVisible(n){
   if(focusSet&&!focusSet.has(n.id))return false;
+  if(mitigationFilterIds&&!mitigationFilterIds.has(n.id))return false;
   if(!filters[n.type])return false;
   if(n.type==='harm'){
     const iz=zone(n.severity,harmWorstOcc(n));
@@ -1281,6 +1347,178 @@ function clearFocus(){
     draw();
   }
   updList();
+}
+
+// ── Mitigation filter (Excel-style multi-select) ────────────────────
+// Filters by SITUATION: a situation is "matched" if any of its Situation→Harm
+// edges carries one of the selected mitigations (OR across selections). A matched
+// situation then surfaces its full sequence — parent hazard(s), ALL its harms, and
+// ALL controls on ALL its edges — so you see the mitigation you filtered for plus
+// every other mitigation on the same situation. Live & view-only: no Save, no
+// relayout (spatial positions are preserved), no mutation of nodes/edges.
+
+// Control nodes used on at least one Situation→Harm edge, sorted alphabetically.
+function mitigationFilterControls(){
+  const used=new Set();
+  allSitHarmEdges().forEach(e=>{
+    (e.controls||[]).forEach(a=>{ if(a&&a.controlId!=null) used.add(a.controlId); });
+  });
+  return nodes.filter(n=>n.type==='control'&&used.has(n.id))
+              .sort((a,b)=>(a.label||'').localeCompare(b.label||''));
+}
+
+// How many Situation→Harm edges a control is attached to (its reach across sequences).
+function mitigationUseCount(controlId){
+  return allSitHarmEdges().reduce((acc,e)=>
+    acc+((e.controls||[]).some(a=>a&&a.controlId===controlId)?1:0),0);
+}
+
+// Compute the visible-id set for the current selection (null = filter off).
+function computeMitigationFilterIds(selSet){
+  if(!selSet||!selSet.size)return null;
+  const ids=new Set();
+  const matchedSits=new Set();
+  allSitHarmEdges().forEach(e=>{
+    if((e.controls||[]).some(a=>a&&selSet.has(a.controlId))) matchedSits.add(e.from);
+  });
+  matchedSits.forEach(sitId=>{
+    ids.add(sitId);
+    edges.forEach(e=>{ if(e.to===sitId) ids.add(e.from); });            // parent hazard(s)
+    allSitHarmEdges().forEach(e=>{
+      if(e.from!==sitId)return;
+      ids.add(e.to);                                                    // every harm of this situation
+      (e.controls||[]).forEach(a=>{ if(a&&a.controlId!=null) ids.add(a.controlId); }); // every control
+    });
+  });
+  return ids;
+}
+
+// Recompute + repaint. No relayout, so nodes stay put and non-matches just hide.
+function applyMitigationFilter(){
+  mitigationFilterIds=computeMitigationFilterIds(mitigationFilterSel);
+  updateMitigationFilterBtn();
+  draw();updList();
+  if(document.body.classList.contains('view-matrix'))renderMatrix();
+}
+
+function updateMitigationFilterBtn(){
+  const btn=document.getElementById('mitigation-filter-btn');
+  if(!btn)return;
+  const n=mitigationFilterSel.size;
+  if(n){
+    btn.textContent=`▼ Mitigation: ${n} selected`;
+    btn.style.background='rgba(37,99,235,.14)';
+    btn.style.borderColor='rgba(37,99,235,.7)';
+    btn.style.fontWeight='700';
+  } else {
+    btn.textContent='▼ Filter by Mitigation';
+    btn.style.background='#eff6ff';
+    btn.style.borderColor='rgba(37,99,235,.45)';
+    btn.style.fontWeight='';
+  }
+}
+
+function _mitEsc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// Open/close the dropdown; builds the shell (search · actions · checklist · footer) on open.
+function toggleMitigationMenu(ev){
+  if(ev)ev.stopPropagation();
+  const menu=document.getElementById('mitigation-filter-menu');
+  if(!menu)return;
+  if(menu.style.display==='block'){menu.style.display='none';return;}
+  menu.innerHTML=
+    `<div style="padding:7px 8px 5px;border-bottom:1px solid var(--border);">
+       <input id="mitigation-filter-search" type="text" placeholder="Search mitigations…" value="${_mitEsc(mitigationFilterSearch)}"
+         oninput="onMitigationSearch(this.value)" autocomplete="off"
+         style="width:100%;box-sizing:border-box;font-family:'IBM Plex Sans',sans-serif;font-size:12px;padding:5px 7px;border:1px solid var(--border2);border-radius:4px;outline:none;">
+       <div style="display:flex;gap:6px;margin-top:6px;">
+         <button onclick="selectAllMitigations()" style="flex:1;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 6px;border-radius:3px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);cursor:pointer;">Select all</button>
+         <button onclick="clearMitigationFilter()" style="flex:1;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 6px;border-radius:3px;border:1px solid rgba(220,38,38,.4);background:#fef2f2;color:#dc2626;cursor:pointer;">Clear</button>
+       </div>
+     </div>
+     <div id="mitigation-filter-list" style="max-height:300px;overflow-y:auto;padding:4px;"></div>
+     <div style="padding:5px 9px;border-top:1px solid var(--border);font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;display:flex;justify-content:space-between;align-items:center;">
+       <span id="mitigation-filter-footlabel"></span>
+       <button onclick="document.getElementById('mitigation-filter-menu').style.display='none'" style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 10px;border-radius:3px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);cursor:pointer;">Done</button>
+     </div>`;
+  renderMitigationChecklist();
+  menu.style.display='block';
+  const si=document.getElementById('mitigation-filter-search');
+  if(si)setTimeout(()=>si.focus(),0);
+  setTimeout(()=>{
+    const closer=(e)=>{
+      if(!menu.contains(e.target)&&e.target.id!=='mitigation-filter-btn'){
+        menu.style.display='none';
+        document.removeEventListener('click',closer);
+      }
+    };
+    document.addEventListener('click',closer);
+  },0);
+}
+
+// (Re)render just the checklist body, honoring the search box and current selection.
+function renderMitigationChecklist(){
+  const list=document.getElementById('mitigation-filter-list');
+  if(!list)return;
+  const q=(mitigationFilterSearch||'').trim().toLowerCase();
+  let ctrls=mitigationFilterControls();
+  if(q)ctrls=ctrls.filter(c=>(c.label||'').toLowerCase().includes(q));
+  if(!ctrls.length){
+    list.innerHTML=`<div style="padding:10px;font-size:11px;color:var(--text3);font-style:italic;">${q?'No mitigations match \u201c'+_mitEsc(mitigationFilterSearch)+'\u201d':'No mitigations attached to any sequence yet'}</div>`;
+  } else {
+    list.innerHTML=ctrls.map(c=>{
+      const checked=mitigationFilterSel.has(c.id)?'checked':'';
+      const cnt=mitigationUseCount(c.id);
+      const nw=c.needsWork?' <span title="Needs Work" style="color:#dc2626">\u2691</span>':'';
+      return `<label style="display:flex;align-items:flex-start;gap:7px;padding:4px 6px;border-radius:3px;cursor:pointer;font-size:11.5px;line-height:1.35;"
+        onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <input type="checkbox" ${checked} onchange="toggleMitigationControl(${c.id},this.checked)" style="margin-top:2px;flex-shrink:0;cursor:pointer;">
+        <span style="flex:1;overflow:hidden;">${_mitEsc(c.label||'(untitled control)')}${nw}</span>
+        <span style="flex-shrink:0;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:9.5px;margin-top:1px;" title="Used on ${cnt} sequence${cnt===1?'':'s'}">\u00d7${cnt}</span>
+      </label>`;
+    }).join('');
+  }
+  updateMitigationFooter();
+}
+
+function updateMitigationFooter(){
+  const fl=document.getElementById('mitigation-filter-footlabel');
+  if(!fl)return;
+  const n=mitigationFilterSel.size;
+  if(!n){fl.textContent='No filter \u2014 showing all';return;}
+  let sits=0;
+  if(mitigationFilterIds){
+    mitigationFilterIds.forEach(id=>{const x=nodes.find(nn=>nn.id===id);if(x&&x.type==='situation')sits++;});
+  }
+  fl.textContent=`${n} selected \u00b7 ${sits} situation${sits===1?'':'s'}`;
+}
+
+function onMitigationSearch(val){
+  mitigationFilterSearch=val;
+  renderMitigationChecklist();
+}
+
+function toggleMitigationControl(id,checked){
+  if(checked)mitigationFilterSel.add(id);
+  else mitigationFilterSel.delete(id);
+  applyMitigationFilter();   // live canvas + list update
+  updateMitigationFooter();  // refresh footer without rebuilding the list (keeps scroll/focus)
+}
+
+// "Select all" applies to the controls currently visible under the search box (Excel behavior).
+function selectAllMitigations(){
+  const q=(mitigationFilterSearch||'').trim().toLowerCase();
+  let ctrls=mitigationFilterControls();
+  if(q)ctrls=ctrls.filter(c=>(c.label||'').toLowerCase().includes(q));
+  ctrls.forEach(c=>mitigationFilterSel.add(c.id));
+  applyMitigationFilter();
+  renderMitigationChecklist();
+}
+
+function clearMitigationFilter(){
+  mitigationFilterSel.clear();
+  applyMitigationFilter();
+  renderMitigationChecklist();
 }
 
 // ── Draw ───────────────────────────────────────────────────────────
@@ -2997,22 +3235,356 @@ function setView(view){
   activeView=view;
   document.getElementById('view-graph').classList.toggle('active',view==='graph');
   document.getElementById('view-matrix').classList.toggle('active',view==='matrix');
+  const cBtn=document.getElementById('view-controls');
+  if(cBtn)cBtn.classList.toggle('active',view==='controls');
   const canvas=document.getElementById('canvas');
   const mv=document.getElementById('matrix-view');
+  const cv=document.getElementById('controls-view');
+  // Hide everything, then show the chosen view.
+  canvas.style.display='none';
+  mv.style.display='none';
+  if(cv)cv.style.display='none';
+  document.body.classList.remove('view-matrix','view-graph','view-controls');
   if(view==='matrix'){
-    canvas.style.display='none';
     mv.style.display='flex';
     document.body.classList.add('view-matrix');
-    document.body.classList.remove('view-graph');
     renderMatrixColFilter();
     renderMatrix();
+  }else if(view==='controls'){
+    if(cv)cv.style.display='flex';
+    document.body.classList.add('view-controls');
+    renderControlsTable();
   }else{
     canvas.style.display='block';
-    mv.style.display='none';
-    document.body.classList.remove('view-matrix');
     document.body.classList.add('view-graph');
     draw();
   }
+}
+
+// ── Controls view (master working list of risk controls / mitigations) ──
+let controlsTableSearch='';
+let controlsTableSort='name';   // 'name' | 'usage'
+let controlsFilterOwner='';
+let controlsFilterStatus='';
+let controlsDetailId=null;      // control currently open in the detail drawer
+const CONTROLS_UNASSIGNED='\u0000unassigned';  // sentinel for the "Unassigned" filter option
+
+// Default status vocabulary. PLACEHOLDER — adjust to your QMS control states
+// (e.g. from CM-000023-OP). Any custom status already in the data is preserved
+// and shown alongside these.
+const CONTROL_STATUSES=['Proposed','In review','Approved','Implemented','Verified','Obsolete'];
+function statusClass(s){
+  switch((s||'').trim().toLowerCase()){
+    case 'proposed':return 'cs-proposed';
+    case 'in review':return 'cs-review';
+    case 'approved':return 'cs-approved';
+    case 'implemented':return 'cs-implemented';
+    case 'verified':return 'cs-verified';
+    case 'obsolete':return 'cs-obsolete';
+    default:return '';
+  }
+}
+function statusPill(s){
+  if(!(s||'').trim())return '<span class="cs-pill cs-unset">—</span>';
+  const cls=statusClass(s)||'cs-custom';
+  return `<span class="cs-pill ${cls}">${_mitEsc(s)}</span>`;
+}
+
+// Distinct situations a control reaches (matches what "Where used" will show).
+function controlSituationCount(controlId){
+  const sits=new Set();
+  allSitHarmEdges().forEach(e=>{ if((e.controls||[]).some(a=>a&&a.controlId===controlId)) sits.add(e.from); });
+  return sits.size;
+}
+
+function controlsTableRows(){
+  let arr=nodes.filter(n=>n.type==='control').map(c=>({
+    c, sits:controlSituationCount(c.id), edges:mitigationUseCount(c.id)
+  }));
+  const q=(controlsTableSearch||'').trim().toLowerCase();
+  if(q)arr=arr.filter(r=>(r.c.label||'').toLowerCase().includes(q)
+    ||(r.c.verification||'').toLowerCase().includes(q)
+    ||(r.c.notes||'').toLowerCase().includes(q)
+    ||(r.c.owner||'').toLowerCase().includes(q));
+  if(controlsFilterOwner){
+    if(controlsFilterOwner===CONTROLS_UNASSIGNED)arr=arr.filter(r=>!(r.c.owner||'').trim());
+    else arr=arr.filter(r=>(r.c.owner||'')===controlsFilterOwner);
+  }
+  if(controlsFilterStatus){
+    if(controlsFilterStatus===CONTROLS_UNASSIGNED)arr=arr.filter(r=>!(r.c.status||'').trim());
+    else arr=arr.filter(r=>(r.c.status||'')===controlsFilterStatus);
+  }
+  if(controlsTableSort==='usage')
+    arr.sort((a,b)=>b.sits-a.sits||(a.c.label||'').localeCompare(b.c.label||''));
+  else
+    arr.sort((a,b)=>(a.c.label||'').localeCompare(b.c.label||''));
+  return arr;
+}
+
+// Populate the Owner/Status filter dropdowns + the detail-panel owner datalist
+// from values actually present in the data (owners grow organically as you add them).
+function renderControlsFilters(){
+  const ctrls=nodes.filter(n=>n.type==='control');
+  const owners=[...new Set(ctrls.map(c=>(c.owner||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const present=[...new Set(ctrls.map(c=>(c.status||'').trim()).filter(Boolean))];
+  const statusList=[...CONTROL_STATUSES,...present.filter(s=>!CONTROL_STATUSES.includes(s))];
+  const hasUnOwner=ctrls.some(c=>!(c.owner||'').trim());
+  const hasUnStatus=ctrls.some(c=>!(c.status||'').trim());
+  const oSel=document.getElementById('controls-filter-owner');
+  if(oSel){
+    oSel.innerHTML='<option value="">All owners</option>'+
+      (hasUnOwner?`<option value="${CONTROLS_UNASSIGNED}">Unassigned</option>`:'')+
+      owners.map(o=>`<option value="${_mitEsc(o)}">${_mitEsc(o)}</option>`).join('');
+    if(![...oSel.options].some(o=>o.value===controlsFilterOwner))controlsFilterOwner='';
+    oSel.value=controlsFilterOwner;
+    oSel.classList.toggle('active',!!controlsFilterOwner);
+  }
+  const sSel=document.getElementById('controls-filter-status');
+  if(sSel){
+    sSel.innerHTML='<option value="">All statuses</option>'+
+      (hasUnStatus?`<option value="${CONTROLS_UNASSIGNED}">Unassigned</option>`:'')+
+      statusList.map(s=>`<option value="${_mitEsc(s)}">${_mitEsc(s)}</option>`).join('');
+    if(![...sSel.options].some(o=>o.value===controlsFilterStatus))controlsFilterStatus='';
+    sSel.value=controlsFilterStatus;
+    sSel.classList.toggle('active',!!controlsFilterStatus);
+  }
+  const dl=document.getElementById('controls-owner-options');
+  if(dl)dl.innerHTML=owners.map(o=>`<option value="${_mitEsc(o)}"></option>`).join('');
+  const clr=document.getElementById('controls-filter-clear');
+  if(clr)clr.style.display=(controlsFilterOwner||controlsFilterStatus||controlsTableSearch)?'':'none';
+}
+
+function renderControlsTable(){
+  const thead=document.getElementById('controls-thead');
+  const tbody=document.getElementById('controls-tbody');
+  if(!thead||!tbody)return;
+  renderControlsFilters();
+  const bn=document.getElementById('controls-sort-name'),bu=document.getElementById('controls-sort-usage');
+  if(bn)bn.classList.toggle('active',controlsTableSort==='name');
+  if(bu)bu.classList.toggle('active',controlsTableSort==='usage');
+
+  thead.innerHTML=`<tr>
+    <th style="width:40px">#</th>
+    <th>Control / Mitigation</th>
+    <th style="width:132px">Owner</th>
+    <th style="width:120px">Status</th>
+    <th style="width:84px">Used</th>
+    <th style="width:118px">Actions</th>
+  </tr>`;
+
+  const rows=controlsTableRows();
+  const total=nodes.filter(n=>n.type==='control').length;
+  const cnt=document.getElementById('controls-count');
+  if(cnt)cnt.textContent=`${rows.length} of ${total} control${total===1?'':'s'}`;
+
+  const filtered=!!(controlsTableSearch||controlsFilterOwner||controlsFilterStatus);
+  if(!rows.length){
+    tbody.innerHTML=`<tr><td colspan="6"><div class="matrix-empty-state"><b>No controls${filtered?' match the filters':''}</b>${filtered?'Try a different search, owner, or status — or Clear.':'Add risk controls in the Graph view, then they appear here.'}</div></td></tr>`;
+    return;
+  }
+
+  const aBtn='font-family:\'IBM Plex Mono\',monospace;font-size:10px;font-weight:600;padding:3px 8px;border-radius:3px;cursor:pointer;';
+  tbody.innerHTML=rows.map((r,i)=>{
+    const c=r.c;
+    const active=(controlsDetailId===c.id)?' cd-active':'';
+    const label=_mitEsc(c.label||'(untitled control)');
+    const flag=c.needsWork?` <span class="nw-flag" title="${_mitEsc(c.needsWorkNote||'Flagged as Needs Work')}">\u2691</span>`:'';
+    const owner=(c.owner||'').trim()
+      ? _mitEsc(c.owner)
+      : '<span style="color:var(--text3);font-style:italic;">Unassigned</span>';
+    const used=r.sits
+      ? `<span title="On ${r.edges} Situation\u2192Harm edge${r.edges===1?'':'s'}">${r.sits} situation${r.sits===1?'':'s'}</span>`
+      : `<span style="color:var(--text3);font-style:italic;">unused</span>`;
+    const whereBtn=r.sits
+      ? `<button onclick="event.stopPropagation();controlWhereUsed(${c.id})" title="Open the Matrix filtered to the sequences using this control" style="${aBtn}border:1px solid rgba(37,99,235,.5);background:#eff6ff;color:#1d4ed8;">Where used \u2192</button>`
+      : `<button disabled title="Not attached to any sequence yet" style="${aBtn}border:1px solid var(--border2);background:var(--surface);color:var(--text3);opacity:.5;cursor:default;">Where used \u2192</button>`;
+    return `<tr class="ctrl-row${active}" style="cursor:pointer" title="Click for full detail" onclick="openControlDetail(${c.id})">
+      <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace">${String(i+1).padStart(3,'0')}</td>
+      <td>${label}${flag}</td>
+      <td>${owner}</td>
+      <td>${statusPill(c.status)}</td>
+      <td>${used}</td>
+      <td>${whereBtn}</td>
+    </tr>`;
+  }).join('');
+}
+
+function onControlsSearch(v){controlsTableSearch=v;renderControlsTable();}
+function setControlsSort(s){controlsTableSort=s;renderControlsTable();}
+function onControlsFilterChange(){
+  const o=document.getElementById('controls-filter-owner');
+  const s=document.getElementById('controls-filter-status');
+  controlsFilterOwner=o?o.value:'';
+  controlsFilterStatus=s?s.value:'';
+  renderControlsTable();
+}
+function clearControlsFilters(){
+  controlsFilterOwner='';controlsFilterStatus='';controlsTableSearch='';
+  const si=document.getElementById('controls-search');if(si)si.value='';
+  renderControlsTable();
+}
+
+// Hand off to the Matrix view filtered to just this control (replaces any current selection).
+function controlWhereUsed(controlId){
+  mitigationFilterSel=new Set([controlId]);
+  applyMitigationFilter();
+  setView('matrix');
+}
+
+// Jump to the Graph view with this control selected and its edit panel open.
+function controlEditFromTable(controlId){
+  const n=nodes.find(x=>x.id===controlId&&x.type==='control');
+  if(!n)return;
+  setView('graph');
+  selectNode(n);
+}
+
+// ── Control detail drawer ───────────────────────────────────────────
+function openControlDetail(id){
+  const c=nodes.find(x=>x.id===id&&x.type==='control');
+  const panel=document.getElementById('controls-detail');
+  if(!c||!panel)return;
+  controlsDetailId=id;
+  panel.style.display='block';
+  renderControlDetail();
+  renderControlsTable();   // refresh row highlight
+}
+function closeControlDetail(){
+  controlsDetailId=null;
+  const panel=document.getElementById('controls-detail');
+  if(panel)panel.style.display='none';
+  renderControlsTable();
+}
+function renderControlDetail(){
+  const panel=document.getElementById('controls-detail');
+  if(!panel)return;
+  const c=nodes.find(x=>x.id===controlsDetailId&&x.type==='control');
+  if(!c){closeControlDetail();return;}
+  const sits=controlSituationCount(c.id),edg=mitigationUseCount(c.id);
+  const cur=(c.status||'').trim();
+  const statusOpts=['',...CONTROL_STATUSES,...((cur&&!CONTROL_STATUSES.includes(cur))?[cur]:[])];
+  panel.innerHTML=`
+    <div class="cd-sec" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <span class="cd-lbl" style="margin:0">Control detail</span>
+      <button onclick="closeControlDetail()" title="Close" style="border:none;background:none;cursor:pointer;font-size:15px;line-height:1;color:var(--text3);width:auto;padding:0">\u2715</button>
+    </div>
+    <div class="cd-sec">
+      <label class="cd-lbl">Control / Mitigation</label>
+      <textarea rows="2" onchange="commitControlField(${c.id},'label',this.value)">${_mitEsc(c.label||'')}</textarea>
+    </div>
+    <div class="cd-sec" style="display:flex;gap:8px;">
+      <div style="flex:1">
+        <label class="cd-lbl">Owner</label>
+        <input list="controls-owner-options" placeholder="Unassigned" value="${_mitEsc(c.owner||'')}" onchange="commitControlField(${c.id},'owner',this.value)">
+      </div>
+      <div style="flex:1">
+        <label class="cd-lbl">Status</label>
+        <select onchange="commitControlField(${c.id},'status',this.value)">
+          ${statusOpts.map(s=>`<option value="${_mitEsc(s)}" ${cur===s.trim()?'selected':''}>${s?_mitEsc(s):'\u2014 Unset \u2014'}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="cd-sec">
+      <label class="cd-lbl">Verification of Effectiveness</label>
+      <textarea rows="2" placeholder="ID-XXXX Verification Plan, test report ref…" onchange="commitControlField(${c.id},'verification',this.value)">${_mitEsc(c.verification||'')}</textarea>
+    </div>
+    <div class="cd-sec">
+      <label class="cd-lbl">Notes</label>
+      <textarea rows="3" placeholder="REQ-XXXX, SOP refs, rationale, reviewer…" onchange="commitControlField(${c.id},'notes',this.value)">${_mitEsc(c.notes||'')}</textarea>
+    </div>
+    <div class="cd-sec">
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;">
+        <input type="checkbox" ${c.needsWork?'checked':''} onchange="commitControlNeedsWork(${c.id},this.checked)" style="width:auto;cursor:pointer"> Needs Work
+      </label>
+      <textarea rows="2" placeholder="What needs doing? (optional)" onchange="commitControlField(${c.id},'needsWorkNote',this.value)" style="margin-top:5px;display:${c.needsWork?'block':'none'}">${_mitEsc(c.needsWorkNote||'')}</textarea>
+    </div>
+    <div class="cd-sec" style="display:flex;flex-direction:column;gap:7px;">
+      <span style="font-size:11px;color:var(--text2)">Used in <b>${sits}</b> situation${sits===1?'':'s'} \u00b7 ${edg} edge${edg===1?'':'s'}</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${sits?`<button class="cd-btn" onclick="controlWhereUsed(${c.id})" style="border:1px solid rgba(37,99,235,.5);background:#eff6ff;color:#1d4ed8;">Where used \u2192</button>`:''}
+        <button class="cd-btn" onclick="controlEditFromTable(${c.id})" style="border:1px solid var(--border2);background:var(--surface);color:var(--text2);">Open in Graph</button>
+      </div>
+    </div>
+    <div class="cd-sec">
+      <label class="cd-lbl">Comments <span id="cd-cm-count" style="text-transform:none;letter-spacing:0;font-weight:400;color:var(--text3)"></span></label>
+      <div id="cd-cm-list" style="margin-bottom:6px;"></div>
+      <textarea id="cd-cm-input" rows="2" placeholder="Add a comment…"></textarea>
+      <button class="cd-btn" onclick="addControlComment(${c.id})" style="margin-top:5px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);">Post comment</button>
+    </div>`;
+  renderControlComments(c);
+}
+
+// Commit a single field edit: undo checkpoint, mutate, repaint, persist + audit.
+function commitControlField(id,field,value){
+  const c=nodes.find(x=>x.id===id&&x.type==='control');
+  if(!c)return;
+  const v=value==null?'':value;
+  if((c[field]||'')===v)return;   // no-op — don't spam undo/save
+  pushUndo();
+  c[field]=v;
+  renderControlsTable();draw();updList();
+  if(activeView==='matrix')renderMatrix();
+  flushSave(`Updated ${field} on "${(c.label||'').substring(0,40)}"`);
+}
+function commitControlNeedsWork(id,on){
+  const c=nodes.find(x=>x.id===id&&x.type==='control');
+  if(!c)return;
+  if(!!c.needsWork!==!!on)pushUndo();
+  c.needsWork=!!on;
+  renderControlDetail();   // toggle the note textarea visibility
+  renderControlsTable();draw();updList();
+  if(activeView==='matrix')renderMatrix();
+  flushSave(`${on?'Flagged':'Unflagged'} "${(c.label||'').substring(0,40)}" as Needs Work`);
+}
+
+// Comments in the detail drawer — same node.comments[] model as the Graph panel,
+// so threads are shared. Own DOM ids to avoid colliding with the graph panel.
+function renderControlComments(c){
+  const list=document.getElementById('cd-cm-list');
+  const cnt=document.getElementById('cd-cm-count');
+  if(!list)return;
+  const comments=Array.isArray(c.comments)?c.comments:[];
+  if(cnt)cnt.textContent=comments.length?`(${comments.length})`:'';
+  if(!comments.length){list.innerHTML='<div style="font-size:11px;color:var(--text3);font-style:italic">No comments yet.</div>';return;}
+  const sorted=[...comments].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const me=currentUser||'(anonymous)';
+  list.innerHTML=sorted.map(cm=>{
+    const canDel=cm.author===me;
+    return `<div style="border:1px solid var(--border);border-radius:4px;padding:5px 7px;margin-bottom:5px;background:var(--surface2)">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:2px">
+        <span style="font-weight:600;color:var(--text2)">${escapeHtml(cm.author)}</span>
+        <span title="${escapeHtml(cm.createdAt)}">${escapeHtml(formatCommentTime(cm.createdAt))}</span>
+      </div>
+      <div style="font-size:11.5px;white-space:pre-wrap;word-break:break-word">${escapeHtml(cm.text)}</div>
+      ${canDel?`<div style="text-align:right;margin-top:3px"><button onclick="deleteControlComment(${c.id},'${cm.id}')" style="border:none;background:none;color:#dc2626;font-size:10px;cursor:pointer;width:auto;padding:0">\u2715 delete</button></div>`:''}
+    </div>`;
+  }).join('');
+}
+function addControlComment(id){
+  const c=nodes.find(x=>x.id===id&&x.type==='control');
+  if(!c)return;
+  const ta=document.getElementById('cd-cm-input');
+  const text=((ta&&ta.value)||'').trim();
+  if(!text){toast('Type a comment first');return;}
+  pushUndo();
+  if(!Array.isArray(c.comments))c.comments=[];
+  c.comments.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),author:currentUser||'(anonymous)',text,createdAt:new Date().toISOString()});
+  if(ta)ta.value='';
+  renderControlComments(c);updList();draw();
+  flushSave(`Commented on "${(c.label||'').substring(0,40)}"`);
+  toast('Comment posted');
+}
+function deleteControlComment(id,commentId){
+  const c=nodes.find(x=>x.id===id&&x.type==='control');
+  if(!c||!Array.isArray(c.comments))return;
+  const idx=c.comments.findIndex(x=>x.id===commentId);
+  if(idx<0)return;
+  if(c.comments[idx].author!==(currentUser||'(anonymous)')){toast('Only the author can delete this comment');return;}
+  if(!confirm('Delete this comment?'))return;
+  pushUndo();
+  c.comments.splice(idx,1);
+  renderControlComments(c);updList();draw();
+  flushSave(`Deleted a comment on "${(c.label||'').substring(0,40)}"`);
 }
 
 // Column-visibility filter chips above the matrix.
@@ -3070,7 +3642,25 @@ function renderMatrixRowFilter(){
   harmSel.classList.toggle('active',!!matrixFilterHarm);
 
   const clearBtn=document.getElementById('matrix-filter-clear');
-  if(clearBtn) clearBtn.style.display=(matrixFilterHazard||matrixFilterHarm||matrixFilterNeedsWork)?'':'none';
+  if(clearBtn) clearBtn.style.display=(matrixFilterHazard||matrixFilterHarm||matrixFilterNeedsWork||mitigationFilterSel.size)?'':'none';
+
+  // Mitigation filter indicator (the picker itself lives in Graph view). Shows
+  // how many mitigations are selected and how many situations they match, with a
+  // ✕ to clear without leaving the matrix.
+  const mitEl=document.getElementById('matrix-filter-mit');
+  if(mitEl){
+    const n=mitigationFilterSel.size;
+    if(n){
+      let sits=0;
+      if(mitigationFilterIds){mitigationFilterIds.forEach(id=>{const x=nodes.find(nn=>nn.id===id);if(x&&x.type==='situation')sits++;});}
+      mitEl.style.display='inline-flex';
+      mitEl.innerHTML=`Mitigation: ${n} selected · ${sits} situation${sits===1?'':'s'}`+
+        `<span onclick="clearMitigationFilter()" title="Clear mitigation filter" style="cursor:pointer;font-weight:700;padding:0 2px;">\u2715</span>`;
+    } else {
+      mitEl.style.display='none';
+      mitEl.innerHTML='';
+    }
+  }
 
   // Reflect the Needs Work toggle's active state + count of flagged nodes.
   const nwBtn=document.getElementById('matrix-filter-nw');
@@ -3100,6 +3690,13 @@ function clearMatrixRowFilters(){
   matrixFilterHazard='';
   matrixFilterHarm='';
   matrixFilterNeedsWork=false;
+  if(mitigationFilterSel.size){
+    mitigationFilterSel.clear();
+    mitigationFilterIds=null;
+    updateMitigationFilterBtn();
+    renderMitigationChecklist();
+    draw();updList();
+  }
   renderMatrix();
 }
 
@@ -3159,6 +3756,10 @@ function buildMatrixRows(){
     // Hazard filter: skip situations whose parent hazard doesn't match.
     // (sitIdx is still incremented above so displayed IDs stay stable.)
     if(fHaz!==null && (!hz || hz.id!==fHaz)) continue;
+
+    // Mitigation filter (set in Graph view): skip situations not matched by the
+    // selected mitigation(s). Situation-level — same matched set as the canvas.
+    if(mitigationFilterIds && !mitigationFilterIds.has(sit.id)) continue;
 
     let harmEdges=edges.filter(e=>e.from===sit.id)
       .map(e=>{const harm=nodes.find(n=>n.id===e.to);return harm&&harm.type==='harm'?{harm,edge:e}:null;})
@@ -3291,7 +3892,7 @@ function renderMatrix(){
 
   // Build the body
   const rows=buildMatrixRows();
-  const filterActive=!!(matrixFilterHazard||matrixFilterHarm||matrixFilterNeedsWork);
+  const filterActive=!!(matrixFilterHazard||matrixFilterHarm||matrixFilterNeedsWork||mitigationFilterIds);
   if(!rows.length){
     const cs=Object.values(mc).filter(Boolean).length+initialCols+residualCols
       -(mc.initial?1:0)-(mc.residual?1:0);
