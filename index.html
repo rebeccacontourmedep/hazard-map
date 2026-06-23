@@ -563,14 +563,9 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
       </label>
       <button class="mrf-nw" id="controls-manage-cats" onclick="openCategoryManager()" title="Add, rename, or delete categories">⚙ Categories</button>
       <label class="mrf-label" style="cursor:pointer" title="Hide controls whose status is Obsolete">
-        <input type="checkbox" id="controls-hide-obsolete" onchange="onControlsFilterChange()" style="width:auto;margin:0;cursor:pointer"> Hide Obsolete
+        <input type="checkbox" id="controls-hide-obsolete" checked onchange="onControlsFilterChange()" style="width:auto;margin:0;cursor:pointer"> Hide Obsolete
       </label>
-      <span class="mrf-label" style="gap:4px;">Sort
-        <button class="mrf-nw" id="controls-sort-name" onclick="setControlsSort('name')" title="Alphabetical">A–Z</button>
-        <button class="mrf-nw" id="controls-sort-usage" onclick="setControlsSort('usage')" title="Most-used first">Most used</button>
-      </span>
       <button class="mrf-clear" id="controls-filter-clear" onclick="clearControlsFilters()" style="display:none">Clear</button>
-      <span class="mrf-count" id="controls-count"></span>
     </div>
     <div id="controls-body" style="flex:1;display:flex;overflow:hidden;min-height:0;">
       <div class="matrix-table-wrap" id="controls-table-wrap" style="flex:1;">
@@ -581,6 +576,9 @@ mark{background:#fef08a;border-radius:2px;padding:0;}
         </table>
       </div>
       <div id="controls-detail" style="display:none;width:360px;flex-shrink:0;border-left:1px solid var(--border);overflow-y:auto;background:var(--surface);"></div>
+    </div>
+    <div class="matrix-row-filter" id="controls-footer" style="border-top:1px solid var(--border);border-bottom:none;">
+      <span id="controls-count" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text2)"></span>
     </div>
     <datalist id="controls-owner-options"></datalist>
   </div>
@@ -3321,7 +3319,6 @@ function setView(view){
 
 // ── Controls view (master working list of risk controls / mitigations) ──
 let controlsTableSearch='';
-let controlsTableSort='name';   // 'name' | 'usage'
 let controlsFilterOwner='';
 let controlsFilterStatus='';
 let controlsDetailId=null;      // control currently open in the detail drawer
@@ -3353,7 +3350,7 @@ function statusPill(s){
 // first run) and merged with any category actually assigned to a control (those
 // live on the control node and sync via the normal save payload).
 let controlsFilterCategory='';
-let controlsHideObsolete=false;
+let controlsHideObsolete=true;
 const CONTROL_CATEGORIES_DEFAULT=['CIP','IFU','Test','Labeling','Drawing Inspection'];
 const CAT_STORE_KEY='atlas360.categories';
 function loadStoredCategories(){
@@ -3378,7 +3375,7 @@ function categoryPill(c){
 
 // ── Resizable column widths for the Controls table ──────────────────
 const CONTROLS_COLS=[
-  {key:'idx',     label:'#',                            def:44},
+  {key:'idx',     label:'ID',                           def:56},
   {key:'control', label:'Control / Mitigation',         def:280},
   {key:'owner',   label:'Owner',                        def:128},
   {key:'status',  label:'Status',                       def:118},
@@ -3438,10 +3435,7 @@ function controlsTableRows(){
     if(controlsFilterCategory===CONTROLS_UNASSIGNED)arr=arr.filter(r=>!(r.c.category||'').trim());
     else arr=arr.filter(r=>(r.c.category||'')===controlsFilterCategory);  }
   if(controlsHideObsolete)arr=arr.filter(r=>(r.c.status||'').trim().toLowerCase()!=='obsolete');
-  if(controlsTableSort==='usage')
-    arr.sort((a,b)=>b.sits-a.sits||(a.c.label||'').localeCompare(b.c.label||''));
-  else
-    arr.sort((a,b)=>(a.c.label||'').localeCompare(b.c.label||''));
+  arr.sort((a,b)=>(a.c.label||'').localeCompare(b.c.label||''));
   return arr;
 }
 
@@ -3497,9 +3491,6 @@ function renderControlsTable(){
   const tbody=document.getElementById('controls-tbody');
   if(!thead||!tbody)return;
   renderControlsFilters();
-  const bn=document.getElementById('controls-sort-name'),bu=document.getElementById('controls-sort-usage');
-  if(bn)bn.classList.toggle('active',controlsTableSort==='name');
-  if(bu)bu.classList.toggle('active',controlsTableSort==='usage');
 
   // Column widths (resizable) — render colgroup + size the table to the column sum.
   const cg=document.getElementById('controls-colgroup');
@@ -3535,7 +3526,7 @@ function renderControlsTable(){
       ? `<button onclick="event.stopPropagation();controlWhereUsed(${c.id})" title="Open the Matrix filtered to the sequences using this control" style="${aBtn}border:1px solid rgba(37,99,235,.5);background:#eff6ff;color:#1d4ed8;">Where used \u2192</button>`
       : `<button disabled title="Not attached to any sequence yet" style="${aBtn}border:1px solid var(--border2);background:var(--surface);color:var(--text3);opacity:.5;cursor:default;">Where used \u2192</button>`;
     return `<tr class="ctrl-row${active}" style="cursor:pointer" title="Click for full detail" onclick="openControlDetail(${c.id})">
-      <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace">${String(i+1).padStart(3,'0')}</td>
+      <td style="color:var(--text3);font-family:'IBM Plex Mono',monospace">${c.id}</td>
       <td>${label}</td>
       <td>${owner}</td>
       <td>${statusPill(c.status)}</td>
@@ -3548,7 +3539,6 @@ function renderControlsTable(){
 }
 
 function onControlsSearch(v){controlsTableSearch=v;renderControlsTable();}
-function setControlsSort(s){controlsTableSort=s;renderControlsTable();}
 function onControlsFilterChange(){
   const o=document.getElementById('controls-filter-owner');
   const s=document.getElementById('controls-filter-status');
